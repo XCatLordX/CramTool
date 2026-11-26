@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -68,7 +69,7 @@ fun NoteEditScreen(
     val ctx = LocalContext.current
     val repo = cramApp().notes
     val scope = rememberCoroutineScope()
-    val folders by repo.observeAllFolders().collectAsState(initial = emptyList())
+    val folders by remember(Unit) { repo.observeAllFolders() }.collectAsState(initial = emptyList())
 
     var title by rememberSaveable { mutableStateOf("") }
     var titleTouched by rememberSaveable { mutableStateOf(false) }

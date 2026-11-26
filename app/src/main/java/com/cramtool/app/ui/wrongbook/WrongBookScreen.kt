@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
 fun WrongBookScreen(onBack: () -> Unit, onStart: (QuizRequest) -> Unit) {
     val repo = cramApp().repository
     val scope = rememberCoroutineScope()
-    val items by repo.observeWrongItems().collectAsState(initial = null)
+    val items by remember(Unit) { repo.observeWrongItems() }.collectAsState(initial = null)
     val threshold by repo.masteryThreshold.collectAsState()
     var bankFilter by rememberSaveable { mutableStateOf<Long?>(null) }
     var chapterFilter by rememberSaveable { mutableStateOf<String?>(null) }

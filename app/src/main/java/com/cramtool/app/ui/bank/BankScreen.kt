@@ -69,9 +69,9 @@ private val COUNT_OPTIONS = listOf(10, 20, 50, 0) // 0 = 全部
 fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit, onBrowse: () -> Unit) {
     val repo = cramApp().repository
     val scope = rememberCoroutineScope()
-    val bank by repo.observeBank(bankId).collectAsState(initial = null)
-    val chapters by repo.observeChapters(bankId).collectAsState(initial = emptyList())
-    val questions by repo.observeQuestions(bankId).collectAsState(initial = emptyList())
+    val bank by remember(bankId) { repo.observeBank(bankId) }.collectAsState(initial = null)
+    val chapters by remember(bankId) { repo.observeChapters(bankId) }.collectAsState(initial = emptyList())
+    val questions by remember(bankId) { repo.observeQuestions(bankId) }.collectAsState(initial = emptyList())
 
     // 勾選的章節；null = 尚未初始化（預設全選）
     var selected by rememberSaveable { mutableStateOf<List<String>?>(null) }

@@ -46,8 +46,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun BrowseScreen(bankId: Long, onBack: () -> Unit) {
     val repo = cramApp().repository
-    val bank by repo.observeBank(bankId).collectAsState(initial = null)
-    val questions by repo.observeQuestions(bankId).collectAsState(initial = emptyList())
+    val bank by remember(bankId) { repo.observeBank(bankId) }.collectAsState(initial = null)
+    val questions by remember(bankId) { repo.observeQuestions(bankId) }.collectAsState(initial = emptyList())
     var query by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 

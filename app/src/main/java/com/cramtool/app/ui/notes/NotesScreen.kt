@@ -71,9 +71,9 @@ fun NotesScreen(
 ) {
     val repo = cramApp().notes
     val scope = rememberCoroutineScope()
-    val allFolders by repo.observeAllFolders().collectAsState(initial = emptyList())
-    val subfolders by repo.observeSubfolders(folderId).collectAsState(initial = emptyList())
-    val notes by repo.observeNotesIn(folderId).collectAsState(initial = null)
+    val allFolders by remember(Unit) { repo.observeAllFolders() }.collectAsState(initial = emptyList())
+    val subfolders by remember(folderId) { repo.observeSubfolders(folderId) }.collectAsState(initial = emptyList())
+    val notes by remember(folderId) { repo.observeNotesIn(folderId) }.collectAsState(initial = null)
 
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }

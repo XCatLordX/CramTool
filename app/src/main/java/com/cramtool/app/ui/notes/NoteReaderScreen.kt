@@ -1,6 +1,7 @@
 package com.cramtool.app.ui.notes
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -62,7 +63,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NoteReaderScreen(noteId: Long, onBack: () -> Unit, onEdit: (Long) -> Unit) {
     val repo = cramApp().notes
-    val note by repo.observeNote(noteId).collectAsState(initial = null)
+    val note by remember(noteId) { repo.observeNote(noteId) }.collectAsState(initial = null)
     var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(note) { if (note != null) loaded = true else if (loaded) onBack() } // 被刪除時返回
     val n = note ?: return
@@ -77,7 +78,7 @@ private fun Reader(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> Unit)
     val repo = app.notes
     val scope = rememberCoroutineScope()
     val scale by repo.fontScale.collectAsState()
-    val folders by repo.observeAllFolders().collectAsState(initial = emptyList())
+    val folders by remember(Unit) { repo.observeAllFolders() }.collectAsState(initial = emptyList())
 
     val blocks = remember(note.content) { Markdown.parse(note.content) }
     val outline = remember(blocks) { Markdown.outline(blocks) }
@@ -118,7 +119,7 @@ private fun Reader(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> Unit)
                     title = {
                         Column {
                             Text(note.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                            current?.let {
+                            current?.takeIf { it.title != note.title }?.let {
                                 Text(
                                     it.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelMedium,
@@ -151,13 +152,17 @@ private fun Reader(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> Unit)
             }
         },
     ) { pad ->
-        SelectionContainer {
-            LazyColumn(
-                state = list,
-                modifier = Modifier.fillMaxSize().padding(pad),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 96.dp),
-            ) {
-                itemsIndexed(blocks) { _, b -> MdBlockView(b, scale) }
+        // 底部留白一個畫面高，讓最後幾個標題也能捲到頂端（大綱跳轉後標題會在最上方）
+        BoxWithConstraints(Modifier.fillMaxSize().padding(pad)) {
+            val tail = maxHeight - 48.dp
+            SelectionContainer {
+                LazyColumn(
+                    state = list,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = tail),
+                ) {
+                    itemsIndexed(blocks) { _, b -> MdBlockView(b, scale) }
+                }
             }
         }
     }
