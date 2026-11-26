@@ -1,0 +1,66 @@
+{
+  "bank": "資料結構 期中考（範例）",
+  "description": "示範各種題型的範例題庫，可直接匯入試用",
+  "questions": [
+    {
+      "chapter": "Ch1 複雜度分析",
+      "type": "single",
+      "question": "二分搜尋（Binary Search）在已排序陣列中的最差時間複雜度為何？",
+      "options": ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
+      "answer": "B",
+      "explanation": "每次比較都把搜尋範圍減半，最多 log₂n 次。"
+    },
+    {
+      "chapter": "Ch1 複雜度分析",
+      "type": "fill",
+      "question": "Merge Sort 的平均時間複雜度是 ____。",
+      "answer": ["O(n log n)", "O(nlogn)", "nlogn"],
+      "explanation": "分成 log n 層，每層合併共需 O(n)。"
+    },
+    {
+      "chapter": "Ch1 複雜度分析",
+      "type": "truefalse",
+      "question": "若 f(n) = O(n)，則必定 f(n) = O(n²)。",
+      "answer": true,
+      "explanation": "Big-O 是上界，O(n) 的函數也被 n² 所界住。"
+    },
+    {
+      "chapter": "Ch2 堆疊與佇列",
+      "type": "single",
+      "question": "下列哪一種資料結構是「後進先出（LIFO）」？",
+      "options": ["Queue", "Stack", "Deque", "Priority Queue"],
+      "answer": "B",
+      "explanation": "Stack 最後放入的元素最先被取出；Queue 是先進先出（FIFO）。"
+    },
+    {
+      "chapter": "Ch2 堆疊與佇列",
+      "type": "multiple",
+      "question": "下列哪些應用常使用 Stack 實作？（複選）",
+      "options": ["函式呼叫（call stack）", "括號配對檢查", "印表機工作排程", "中序轉後序運算式"],
+      "answer": ["A", "B", "D"],
+      "explanation": "印表機排程依先後順序處理，屬於 Queue 的應用。"
+    },
+    {
+      "chapter": "Ch2 堆疊與佇列",
+      "type": "short",
+      "question": "請說明如何只用兩個 Stack 實作一個 Queue，並分析 dequeue 的攤銷時間複雜度。",
+      "answer": "使用 inStack 負責 enqueue（直接 push），outStack 負責 dequeue。dequeue 時若 outStack 為空，就把 inStack 的元素全部 pop 並 push 到 outStack，再從 outStack pop。每個元素最多被搬移一次，因此攤銷時間複雜度為 O(1)。",
+      "explanation": "重點：每個元素一生只會 push/pop 各兩次。"
+    },
+    {
+      "chapter": "Ch3 鏈結串列",
+      "type": "single",
+      "question": "在單向鏈結串列（singly linked list）中，已知某節點指標，刪除「該節點的下一個節點」的時間複雜度為？",
+      "options": ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+      "answer": "A",
+      "explanation": "只需修改 node.next = node.next.next。"
+    },
+    {
+      "chapter": "Ch3 鏈結串列",
+      "type": "truefalse",
+      "question": "陣列（array）支援 O(1) 隨機存取，鏈結串列也支援 O(1) 隨機存取。",
+      "answer": false,
+      "explanation": "鏈結串列必須從頭走訪，第 k 個元素需要 O(k)。"
+    }
+  ]
+}
