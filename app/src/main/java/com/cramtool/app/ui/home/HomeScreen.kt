@@ -40,7 +40,12 @@ import com.cramtool.app.ui.cramApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onOpenBank: (Long) -> Unit, onImport: () -> Unit, onWrongBook: () -> Unit) {
+fun HomeScreen(
+    onOpenBank: (Long) -> Unit,
+    onImport: () -> Unit,
+    onWrongBook: () -> Unit,
+    bottomBar: @Composable () -> Unit = {},
+) {
     val repo = cramApp().repository
     val banks by repo.observeBankSummaries().collectAsState(initial = null)
     val wrongCount by repo.observeWrongCount().collectAsState(initial = 0)
@@ -65,6 +70,7 @@ fun HomeScreen(onOpenBank: (Long) -> Unit, onImport: () -> Unit, onWrongBook: ()
                 text = { Text("匯入題庫") },
             )
         },
+        bottomBar = bottomBar,
     ) { pad ->
         val list = banks
         when {

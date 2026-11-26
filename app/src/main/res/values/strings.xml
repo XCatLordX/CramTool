@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CramTool 刷題</string>
-    <string name="import_share_label">匯入題庫到 CramTool</string>
+    <string name="import_share_label">存到 CramTool（題庫／筆記）</string>
 </resources>
