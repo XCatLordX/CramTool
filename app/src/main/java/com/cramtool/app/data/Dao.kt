@@ -45,6 +45,9 @@ interface CramDao {
     @Insert
     suspend fun insertQuestions(questions: List<QuestionEntity>)
 
+    @Insert
+    suspend fun insertQuestion(question: QuestionEntity): Long
+
     @Update
     suspend fun updateQuestion(question: QuestionEntity)
 

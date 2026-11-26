@@ -2,6 +2,7 @@ package com.cramtool.app
 
 import com.cramtool.app.data.BackupCodec
 import com.cramtool.app.data.BackupException
+import com.cramtool.app.data.ExamResultEntity
 import com.cramtool.app.data.ThemeMode
 import com.cramtool.app.importer.QuestionParser
 import kotlinx.coroutines.flow.first
@@ -32,6 +33,8 @@ class BackupTest {
         val noteId = app.notes.createNote("筆記", "# 筆記\n## 1 章\n### 1.1 節\n內容", b)
         app.notes.saveLessonState(noteId, 1, setOf("1.1 節"))
         app.settings.setThemeMode(ThemeMode.DARK)
+        app.repository.insertExam(ExamResultEntity(bankId = bankId, bankName = "資料結構", startedAt = 1, finishedAt = 2,
+            timeLimitSec = 600, durationSec = 300, total = 8, correct = 6, unanswered = 1))
     }
 
     private suspend fun export() = BackupCodec.decode(BackupCodec.encode(app.backup.export("test")))
@@ -74,6 +77,11 @@ class BackupTest {
         assertEquals(setOf("A", "B"), app.notes.observeAllFolders().first().map { it.name }.toSet())
         assertEquals(1, app.repository.observeWrongItems().first().size)
         assertEquals(ThemeMode.DARK, app.settings.themeMode.value)
+        // 作答紀錄與模擬考成績也還原（並對應到新的題庫 id）
+        val newBank = app.repository.getBanks().single().id
+        assertEquals(1, app.repository.observeActiveDays().first().size)
+        assertEquals(listOf(newBank), app.repository.observeExams().first().map { it.bankId })
+        assertEquals(1, app.repository.observeBankStats().first().single().attempts)
         val note = app.notes.searchNotes("筆記").first().single()
         assertEquals(setOf("1.1 節"), app.notes.getNote(note.id)!!.completedSet)
     }

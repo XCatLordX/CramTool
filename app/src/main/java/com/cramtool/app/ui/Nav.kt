@@ -14,6 +14,7 @@ import com.cramtool.app.QuizRequest
 import com.cramtool.app.SessionStore
 import com.cramtool.app.ui.bank.BankScreen
 import com.cramtool.app.ui.browse.BrowseScreen
+import com.cramtool.app.ui.exam.ExamScreen
 import com.cramtool.app.ui.home.HomeScreen
 import com.cramtool.app.ui.importer.ImportScreen
 import com.cramtool.app.ui.notes.NoteEditScreen
@@ -21,6 +22,7 @@ import com.cramtool.app.ui.notes.NoteReaderScreen
 import com.cramtool.app.ui.notes.NotesScreen
 import com.cramtool.app.ui.quiz.QuizScreen
 import com.cramtool.app.ui.settings.SettingsScreen
+import com.cramtool.app.ui.stats.StatsScreen
 import com.cramtool.app.ui.wrongbook.WrongBookScreen
 
 private const val NONE = -1L
@@ -74,14 +76,25 @@ fun CramNavHost() {
                 onBack = { nav.popBackStack() },
                 onStart = ::startQuiz,
                 onBrowse = { nav.navigate("browse/$id") },
+                onExam = { req -> SessionStore.exam = req; nav.navigate("exam") },
             )
         }
         composable("browse/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
             BrowseScreen(bankId = it.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }
+        composable("stats") { StatsScreen(onPractice = ::startQuiz, bottomBar = { tabs(MainTab.STATS) }) }
         composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable("wrongbook") {
             WrongBookScreen(onBack = { nav.popBackStack() }, onStart = ::startQuiz)
+        }
+        composable("exam") {
+            ExamScreen(
+                onExit = { nav.popBackStack() },
+                onPractice = { req ->
+                    SessionStore.quiz = req
+                    nav.navigate("quiz") { popUpTo("exam") { inclusive = true } }
+                },
+            )
         }
         composable("quiz") {
             QuizScreen(

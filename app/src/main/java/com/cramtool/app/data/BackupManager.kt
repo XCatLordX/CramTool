@@ -13,6 +13,7 @@ class BackupManager(
 ) {
     private val cram = db.dao()
     private val noteDao = db.noteDao()
+    private val statsDao = db.statsDao()
 
     suspend fun export(appVersion: String): BackupFile = BackupFile(
         exportedAt = System.currentTimeMillis(),
@@ -21,6 +22,8 @@ class BackupManager(
         questions = cram.getAllQuestions().map { it.dto() },
         folders = noteDao.getAllFolders().map { it.dto() },
         notes = noteDao.getAllNotes().map { it.dto() },
+        answerLog = statsDao.getAllLogs().map { it.dto() },
+        exams = statsDao.getAllExams().map { it.dto() },
         settings = exportSettings(),
     )
 
@@ -35,9 +38,23 @@ class BackupManager(
                 noteDao.deleteAllFolders()
             }
             // 題庫：舊 id → 新 id
+            if (replace) { statsDao.deleteAllLogs(); statsDao.deleteAllExams() }
             val bankMap = file.banks.associate { it.id to cram.insertBank(BankEntity(name = it.name, description = it.description, createdAt = it.createdAt)) }
-            val qs = file.questions.mapNotNull { q -> bankMap[q.bankId]?.let { q.entity(it) } }
-            qs.chunked(500).forEach { cram.insertQuestions(it) }
+            // 題目逐題插入以取得新 id（作答紀錄要對應到新題目）
+            val questionMap = HashMap<Long, Long>()
+            file.questions.forEach { q -> bankMap[q.bankId]?.let { b -> questionMap[q.id] = cram.insertQuestion(q.entity(b)) } }
+            statsDao.insertLogs(file.answerLog.map { l ->
+                AnswerLogEntity(
+                    questionId = questionMap[l.questionId] ?: -1, bankId = bankMap[l.bankId] ?: -1,
+                    chapter = l.chapter, correct = l.correct, answeredAt = l.answeredAt, mode = l.mode,
+                )
+            })
+            file.exams.forEach { e ->
+                statsDao.insertExam(ExamResultEntity(
+                    bankId = bankMap[e.bankId] ?: -1, bankName = e.bankName, startedAt = e.startedAt, finishedAt = e.finishedAt,
+                    timeLimitSec = e.timeLimitSec, durationSec = e.durationSec, total = e.total, correct = e.correct, unanswered = e.unanswered,
+                ))
+            }
 
             // 資料夾：先全部建在最上層，再依對照表接回父資料夾
             val folderMap = file.folders.associate { it.id to noteDao.insertFolder(FolderEntity(name = it.name, createdAt = it.createdAt)) }

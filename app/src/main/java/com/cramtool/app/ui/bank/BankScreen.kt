@@ -1,5 +1,9 @@
 package com.cramtool.app.ui.bank
 
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import com.cramtool.app.ExamRequest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -66,7 +70,13 @@ private val COUNT_OPTIONS = listOf(10, 20, 50, 0) // 0 = 全部
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit, onBrowse: () -> Unit) {
+fun BankScreen(
+    bankId: Long,
+    onBack: () -> Unit,
+    onStart: (QuizRequest) -> Unit,
+    onBrowse: () -> Unit,
+    onExam: (ExamRequest) -> Unit = {},
+) {
     val repo = cramApp().repository
     val scope = rememberCoroutineScope()
     val bank by remember(bankId) { repo.observeBank(bankId) }.collectAsState(initial = null)
@@ -107,16 +117,22 @@ fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit,
         },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
-                Button(
-                    enabled = take > 0,
-                    modifier = Modifier.bottomBarInsets().fillMaxWidth().padding(16.dp),
-                    onClick = {
-                        val picked = (if (shuffle) pool.shuffled() else pool).take(take).map { it.id }
-                        onStart(QuizRequest(bank?.name ?: "刷題", picked))
-                    },
-                ) {
-                    Icon(Icons.Default.PlayArrow, null)
-                    Text(if (take > 0) "  開始刷題（$take 題）" else "  沒有符合條件的題目")
+                Row(Modifier.bottomBarInsets().fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(enabled = take > 0, onClick = { dialog = "exam" }) {
+                        Icon(Icons.Default.Timer, null)
+                        Text(" 模擬考")
+                    }
+                    Button(
+                        enabled = take > 0,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val picked = (if (shuffle) pool.shuffled() else pool).take(take).map { it.id }
+                            onStart(QuizRequest(bank?.name ?: "刷題", picked))
+                        },
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null)
+                        Text(if (take > 0) " 開始刷題（$take 題）" else " 沒有符合條件的題目", maxLines = 1)
+                    }
                 }
             }
         },
@@ -177,6 +193,15 @@ fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit,
     }
 
     when (dialog) {
+        "exam" -> ExamSetupDialog(
+            count = take,
+            onDismiss = { dialog = null },
+        ) { limitMin, shuffleOptions ->
+            dialog = null
+            // 模擬考一律隨機抽題
+            val picked = pool.shuffled().take(take).map { it.id }
+            onExam(ExamRequest(bankId, bank?.name ?: "", picked, limitMin * 60, shuffleOptions))
+        }
         "rename" -> {
             var name by remember { mutableStateOf(bank?.name.orEmpty()) }
             AlertDialog(
@@ -198,6 +223,41 @@ fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit,
             scope.launch { repo.deleteBank(bankId); withContext(Dispatchers.Main) { onBack() } }
         }
     }
+}
+
+private val EXAM_LIMITS = listOf(0, 10, 20, 30, 45, 60, 90)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ExamSetupDialog(count: Int, onDismiss: () -> Unit, onStart: (limitMin: Int, shuffleOptions: Boolean) -> Unit) {
+    // 預設：每題約 1 分鐘，取最接近的選項
+    var limit by rememberSaveable { mutableStateOf(EXAM_LIMITS.drop(1).minBy { kotlin.math.abs(it - count) }) }
+    var shuffleOptions by rememberSaveable { mutableStateOf(true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("模擬考設定") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("共 $count 題（依目前選的章節與來源隨機抽題）。作答中不顯示對錯，交卷後一次看成績與解析。",
+                    style = MaterialTheme.typography.bodyMedium)
+                Text("時間限制", style = MaterialTheme.typography.titleSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    EXAM_LIMITS.forEach { m ->
+                        FilterChip(limit == m, onClick = { limit = m }, label = { Text(if (m == 0) "不限時" else "$m 分") })
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().clickable { shuffleOptions = !shuffleOptions },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("打亂選項順序", Modifier.weight(1f))
+                    Switch(shuffleOptions, onCheckedChange = { shuffleOptions = it })
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onStart(limit, shuffleOptions) }) { Text("開始考試") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @Composable

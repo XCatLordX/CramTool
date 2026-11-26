@@ -8,15 +8,16 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [BankEntity::class, QuestionEntity::class, FolderEntity::class, NoteEntity::class],
-    version = 3,
+    entities = [BankEntity::class, QuestionEntity::class, FolderEntity::class, NoteEntity::class, AnswerLogEntity::class, ExamResultEntity::class],
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): CramDao
     abstract fun noteDao(): NoteDao
+    abstract fun statsDao(): StatsDao
 
     companion object {
         fun create(context: Context): AppDatabase =

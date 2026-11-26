@@ -10,9 +10,20 @@ data class QuizRequest(
     val isReview: Boolean = false,
 )
 
+/** 一次模擬考的設定 */
+data class ExamRequest(
+    val bankId: Long,
+    val bankName: String,
+    val questionIds: List<Long>,
+    /** 0 = 不限時 */
+    val timeLimitSec: Int,
+    val shuffleOptions: Boolean,
+)
+
 /** 畫面間傳遞較大資料用的簡單記憶體存放區 */
 object SessionStore {
     var quiz: QuizRequest? = null
+    var exam: ExamRequest? = null
     /** 由分享／開啟檔案帶進來、等待匯入的文字 */
     val pendingImport = MutableStateFlow<String?>(null)
     /** 已判定為筆記、等待新增筆記畫面接收的文字 */

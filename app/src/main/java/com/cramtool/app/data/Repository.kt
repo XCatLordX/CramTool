@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 class Repository(context: Context, private val db: AppDatabase) {
     private val dao = db.dao()
+    private val stats = db.statsDao()
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     // ---------- 設定 ----------
@@ -63,8 +64,9 @@ class Repository(context: Context, private val db: AppDatabase) {
     }
 
     // ---------- 作答 ----------
-    suspend fun recordAnswer(questionId: Long, correct: Boolean) {
+    suspend fun recordAnswer(questionId: Long, correct: Boolean, mode: Int = MODE_PRACTICE) {
         val q = dao.getQuestion(questionId) ?: return
+        stats.insertLog(AnswerLogEntity(questionId = q.id, bankId = q.bankId, chapter = q.chapter, correct = correct, mode = mode))
         val threshold = masteryThreshold.value
         var inWrong = q.inWrongBook
         var streak = q.reviewStreak
@@ -97,9 +99,22 @@ class Repository(context: Context, private val db: AppDatabase) {
     suspend fun renameBank(id: Long, name: String) = dao.renameBank(id, name)
     suspend fun deleteBank(id: Long) = dao.deleteBank(id)
     suspend fun resetBankStats(id: Long) = dao.resetBankStats(id)
-    suspend fun resetAllStats() = dao.resetAllStats()
+    suspend fun resetAllStats() = db.withTransaction {
+        dao.resetAllStats(); stats.deleteAllLogs(); stats.deleteAllExams()
+    }
     suspend fun deleteBanks(ids: Collection<Long>) = db.withTransaction { ids.forEach { dao.deleteBank(it) } }
     suspend fun resetBanksStats(ids: Collection<Long>) = db.withTransaction { ids.forEach { dao.resetBankStats(it) } }
+
+    // ---------- 學習統計 ----------
+    fun observeDaily(since: Long) = stats.observeDaily(since)
+    fun observeActiveDays() = stats.observeActiveDays()
+    fun observeChapterStats() = stats.observeChapterStats()
+    fun observeBankStats() = stats.observeBankStats()
+    fun observeExams() = stats.observeExams()
+    fun observeLessonProgress() = stats.observeLessonProgress()
+    suspend fun questionIdsIn(bankId: Long, chapter: String) = stats.questionIdsIn(bankId, chapter)
+    suspend fun insertExam(r: ExamResultEntity) = stats.insertExam(r)
+    suspend fun updateExam(r: ExamResultEntity) = stats.updateExam(r)
 
     companion object {
         private const val KEY_MASTERY = "mastery_threshold"

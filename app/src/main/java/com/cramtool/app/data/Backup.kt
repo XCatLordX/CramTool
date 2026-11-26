@@ -14,6 +14,8 @@ data class BackupFile(
     val questions: List<QuestionDto> = emptyList(),
     val folders: List<FolderDto> = emptyList(),
     val notes: List<NoteDto> = emptyList(),
+    val answerLog: List<AnswerLogDto> = emptyList(),
+    val exams: List<ExamDto> = emptyList(),
     val settings: Map<String, String> = emptyMap(),
 ) {
     companion object {
@@ -65,6 +67,15 @@ data class NoteDto(
     val pageCount: Int = 0,
 )
 
+@Serializable
+data class AnswerLogDto(val questionId: Long, val bankId: Long, val chapter: String, val correct: Boolean, val answeredAt: Long, val mode: Int = 0)
+
+@Serializable
+data class ExamDto(
+    val bankId: Long, val bankName: String, val startedAt: Long, val finishedAt: Long, val timeLimitSec: Int = 0,
+    val durationSec: Int = 0, val total: Int, val correct: Int, val unanswered: Int = 0,
+)
+
 class BackupException(message: String) : Exception(message)
 
 object BackupCodec {
@@ -95,6 +106,9 @@ object BackupCodec {
         viewMode, lessonPage, completedPages, pageCount,
     )
 
+    fun AnswerLogEntity.dto() = AnswerLogDto(questionId, bankId, chapter, correct, answeredAt, mode)
+    fun ExamResultEntity.dto() = ExamDto(bankId, bankName, startedAt, finishedAt, timeLimitSec, durationSec, total, correct, unanswered)
+
     fun QuestionDto.entity(newBankId: Long) = QuestionEntity(
         bankId = newBankId, chapter = chapter,
         type = QuestionType.entries.firstOrNull { it.name == type } ?: QuestionType.SINGLE,
@@ -109,9 +123,9 @@ object BackupCodec {
     )
 }
 
-data class BackupSummary(val banks: Int, val questions: Int, val folders: Int, val notes: Int) {
-    override fun toString() = "$banks 個題庫（$questions 題）、$folders 個資料夾、$notes 篇筆記"
+data class BackupSummary(val banks: Int, val questions: Int, val folders: Int, val notes: Int, val exams: Int = 0) {
+    override fun toString() = "$banks 個題庫（$questions 題）、$folders 個資料夾、$notes 篇筆記" + if (exams > 0) "、$exams 次模擬考" else ""
     companion object {
-        fun of(f: BackupFile) = BackupSummary(f.banks.size, f.questions.size, f.folders.size, f.notes.size)
+        fun of(f: BackupFile) = BackupSummary(f.banks.size, f.questions.size, f.folders.size, f.notes.size, f.exams.size)
     }
 }
