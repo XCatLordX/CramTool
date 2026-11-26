@@ -71,7 +71,8 @@ class NotesFlowTest {
 
         // 在最上層新增筆記（模擬從剪貼簿貼上）
         rule.runOnUiThread { SessionStore.pendingNote.value = longNote }
-        rule.onNodeWithText("新增筆記", useUnmergedTree = true).performClick()
+        rule.onNodeWithText("新增", useUnmergedTree = true).performClick()
+        rule.onNodeWithText("新增筆記（貼上 Markdown）").performClick()
         waitText("位置：筆記（最上層）")
         rule.onAllNodesWithText("演算法筆記").onFirst().assertIsDisplayed() // 自動帶入標題
         shot("02_edit")

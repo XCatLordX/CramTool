@@ -6,6 +6,11 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+const val SOURCE_MARKDOWN = 0
+const val SOURCE_PDF = 1
+const val SOURCE_DOCX = 2
+const val SOURCE_PPTX = 3
+
 /** 筆記資料夾，可巢狀（parentId = null 表示最上層） */
 @Entity(
     tableName = "folders",
@@ -57,6 +62,10 @@ data class NoteEntity(
     @ColumnInfo(defaultValue = "") val completedPages: String = "",
     /** 分頁後的總頁數（開啟時更新，用於列表顯示學習進度） */
     @ColumnInfo(defaultValue = "0") val pageCount: Int = 0,
+    /** 來源：[SOURCE_MARKDOWN] 一般筆記，或匯入的 PDF／Word／PowerPoint */
+    @ColumnInfo(defaultValue = "0") val sourceType: Int = SOURCE_MARKDOWN,
+    /** 匯入檔案在 App 內部的路徑（PDF 閱讀、用其他 App 開啟原始檔） */
+    val sourcePath: String? = null,
 ) {
     val completedSet: Set<String> get() = completedPages.split('\n').filter { it.isNotBlank() }.toSet()
 }
@@ -72,6 +81,7 @@ data class NoteSummary(
     val preview: String,
     val pageCount: Int = 0,
     val completedPages: String = "",
+    val sourceType: Int = SOURCE_MARKDOWN,
 ) {
     val completedCount: Int get() = completedPages.split('\n').count { it.isNotBlank() }.coerceAtMost(pageCount)
 }

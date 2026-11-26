@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.delay
+import java.io.File
 import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -80,6 +81,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cramtool.app.data.NoteEntity
+import com.cramtool.app.data.SOURCE_DOCX
+import com.cramtool.app.data.SOURCE_PDF
+import com.cramtool.app.data.SOURCE_PPTX
+import com.cramtool.app.docs.DocumentImporter
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import com.cramtool.app.notes.Lesson
 import com.cramtool.app.notes.Markdown
 import com.cramtool.app.notes.MdBlock
@@ -111,6 +117,7 @@ private fun ReaderHost(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> U
     val scale by repo.fontScale.collectAsState()
     val folders by remember { repo.observeAllFolders() }.collectAsState(initial = emptyList())
 
+    val isPdf = note.sourceType == SOURCE_PDF
     val blocks = remember(note.content) { Markdown.parse(note.content) }
     val pages = remember(blocks) { Lesson.paginate(blocks) }
     val paged = when (note.viewMode) {
@@ -118,7 +125,7 @@ private fun ReaderHost(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> U
         VIEW_PAGED -> true
         else -> pages.size >= 2
     }
-    LaunchedEffect(pages.size) { if (note.pageCount != pages.size) repo.setPageCount(note.id, pages.size) }
+    LaunchedEffect(pages.size) { if (!isPdf && note.pageCount != pages.size) repo.setPageCount(note.id, pages.size) }
 
     var menu by remember { mutableStateOf(false) }
     var showFont by remember { mutableStateOf(false) }
@@ -151,18 +158,25 @@ private fun ReaderHost(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> U
         else IconButton(onClick = toggleFullscreen) { Icon(Icons.Default.Fullscreen, "全螢幕") }
         IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "更多") }
         DropdownMenu(menu, { menu = false }) {
-            DropdownMenuItem(
-                text = { Text("字體大小") },
-                leadingIcon = { Icon(Icons.Default.TextFields, null) },
-                onClick = { menu = false; showFont = true },
+            if (!isPdf) {
+                DropdownMenuItem(
+                    text = { Text("字體大小") },
+                    leadingIcon = { Icon(Icons.Default.TextFields, null) },
+                    onClick = { menu = false; showFont = true },
+                )
+                DropdownMenuItem(
+                    text = { Text(if (paged) "切換為捲動閱讀" else "切換為分頁閱讀（一節一頁）") },
+                    onClick = { menu = false; scope.launch { repo.setViewMode(note.id, if (paged) VIEW_SCROLL else VIEW_PAGED) } },
+                )
+                if (paged) DropdownMenuItem(text = { Text("重設學習進度") }, onClick = { menu = false; dialog = "reset" })
+            }
+            if (note.sourcePath != null) DropdownMenuItem(
+                text = { Text("用其他 App 開啟原始檔") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                onClick = { menu = false; openWithOtherApp(ctx, note) },
             )
-            DropdownMenuItem(
-                text = { Text(if (paged) "切換為捲動閱讀" else "切換為分頁閱讀（一節一頁）") },
-                onClick = { menu = false; scope.launch { repo.setViewMode(note.id, if (paged) VIEW_SCROLL else VIEW_PAGED) } },
-            )
-            if (paged) DropdownMenuItem(text = { Text("重設學習進度") }, onClick = { menu = false; dialog = "reset" })
             HorizontalDivider()
-            DropdownMenuItem(text = { Text("編輯") }, onClick = { menu = false; onEdit(note.id) })
+            if (!isPdf) DropdownMenuItem(text = { Text("編輯") }, onClick = { menu = false; onEdit(note.id) })
             DropdownMenuItem(text = { Text("重新命名") }, onClick = { menu = false; dialog = "rename" })
             DropdownMenuItem(text = { Text("移動到…") }, onClick = { menu = false; dialog = "move" })
             DropdownMenuItem(text = { Text("刪除") }, onClick = { menu = false; dialog = "delete" })
@@ -170,8 +184,11 @@ private fun ReaderHost(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> U
     }
 
     val chrome = ReaderChrome(fullscreen = fullscreen, barVisible = barVisible, onTapContent = { barVisible = !barVisible })
-    if (paged) LessonReader(note, pages, scale, onBack, actions, chrome)
-    else ScrollReader(note, blocks, scale, onBack, actions, chrome)
+    when {
+        isPdf -> PdfReader(note, onBack, actions, chrome)
+        paged -> LessonReader(note, pages, scale, onBack, actions, chrome)
+        else -> ScrollReader(note, blocks, scale, onBack, actions, chrome)
+    }
 
     if (showFont) {
         AlertDialog(
@@ -309,6 +326,25 @@ fun ReaderTopBar(
 }
 
 const val BAR_AUTO_HIDE_MS = 3000L
+
+/** 以其他 App（例如 Google 雲端硬碟、WPS、Office）開啟匯入的原始檔 */
+fun openWithOtherApp(ctx: android.content.Context, note: NoteEntity) {
+    val f = note.sourcePath?.let { File(it) }
+    if (f == null || !f.exists()) {
+        Toast.makeText(ctx, "原始檔案不在這支手機上", Toast.LENGTH_SHORT).show(); return
+    }
+    val mime = when (note.sourceType) {
+        SOURCE_PDF -> "application/pdf"
+        SOURCE_DOCX -> DocumentImporter.MIME_DOCX
+        SOURCE_PPTX -> DocumentImporter.MIME_PPTX
+        else -> "*/*"
+    }
+    val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, mime)
+        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    runCatching { ctx.startActivity(android.content.Intent.createChooser(intent, "用其他 App 開啟")) }
+        .onFailure { Toast.makeText(ctx, "手機上沒有可以開啟這種檔案的 App", Toast.LENGTH_SHORT).show() }
+}
 
 /** 閱讀器的全螢幕狀態：fullscreen 只能用按鈕切換；全螢幕時點內文切換 [barVisible] */
 data class ReaderChrome(val fullscreen: Boolean, val barVisible: Boolean, val onTapContent: () -> Unit)

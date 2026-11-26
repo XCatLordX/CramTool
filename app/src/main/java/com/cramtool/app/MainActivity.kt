@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.cramtool.app.docs.DocumentImporter
 import com.cramtool.app.ui.CramNavHost
 import com.cramtool.app.ui.theme.CramTheme
 
@@ -33,6 +34,16 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         intent ?: return
+        // PDF／Word／PPT：交給筆記頁匯入
+        val docUri = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> intent.streamUri()
+            else -> null
+        }
+        if (docUri != null && DocumentImporter.looksLikeDocument(intent.type ?: contentResolver.getType(docUri), DocumentImporter.displayName(this, docUri))) {
+            SessionStore.pendingDocument.value = docUri
+            return
+        }
         val text: String? = when (intent.action) {
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
                 ?: intent.streamUri()?.let { readUri(it) }

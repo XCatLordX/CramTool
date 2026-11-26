@@ -10,6 +10,7 @@ import com.cramtool.app.data.Repository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class CramApp : Application() {
     lateinit var repository: Repository
@@ -33,6 +34,8 @@ class CramApp : Application() {
         val db = AppDatabase.create(this)
         repository = Repository(this, db)
         notes = NoteRepository(this, db)
-        backup = BackupManager(db, repository, notes, settings)
+        backup = BackupManager(this, db, repository, notes, settings)
+        // 清掉沒有筆記引用的匯入檔（例如「取代」還原後留下的舊檔）
+        appScope.launch { runCatching { notes.cleanupOrphanFiles() } }
     }
 }

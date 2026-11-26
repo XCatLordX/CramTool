@@ -16,8 +16,8 @@ android {
         applicationId = "com.cramtool.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.7.1"
+        versionCode = 10
+        versionName = "0.8.0"
     }
 
     // 正式簽章：優先讀環境變數（GitHub Actions），否則讀專案根目錄的 keystore.properties（已加入 .gitignore）

@@ -96,6 +96,7 @@ fun MdBlockView(block: MdBlock, scale: Float, modifier: Modifier = Modifier) {
         }
         is MdBlock.Table -> TableView(block, body, codeBg, modifier)
         MdBlock.Rule -> HorizontalDivider(modifier.padding(vertical = 12.dp))
+        is MdBlock.Image -> ImageBlock(block, modifier)
     }
 }
 

@@ -5,7 +5,7 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class NoteRepository(context: Context, private val db: AppDatabase) {
+class NoteRepository(private val context: Context, private val db: AppDatabase) {
     private val dao = db.noteDao()
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
@@ -64,9 +64,13 @@ class NoteRepository(context: Context, private val db: AppDatabase) {
     }
 
     /** 刪除多個筆記與資料夾（資料夾內未被選取的內容會移到上一層，不會被刪掉） */
-    suspend fun deleteItems(noteIds: Collection<Long>, folderIds: Collection<Long>) = db.withTransaction {
-        noteIds.forEach { dao.deleteNote(it) }
-        folderIds.forEach { deleteFolder(it) }
+    suspend fun deleteItems(noteIds: Collection<Long>, folderIds: Collection<Long>) {
+        val files = dao.sourcePathsOf(noteIds.toList())
+        db.withTransaction {
+            noteIds.forEach { dao.deleteNote(it) }
+            folderIds.forEach { deleteFolder(it) }
+        }
+        files.forEach { DocumentFiles.delete(it) }
     }
 
     /** 在 [parent] 建立新資料夾，並把選取的項目放進去 */
@@ -88,7 +92,23 @@ class NoteRepository(context: Context, private val db: AppDatabase) {
 
     suspend fun renameNote(id: Long, title: String) = dao.renameNote(id, title)
     suspend fun moveNote(id: Long, folderId: Long?) = dao.moveNote(id, folderId)
-    suspend fun deleteNote(id: Long) = dao.deleteNote(id)
+    suspend fun deleteNote(id: Long) {
+        val files = dao.sourcePathsOf(listOf(id))
+        dao.deleteNote(id)
+        files.forEach { DocumentFiles.delete(it) }
+    }
+
+    /** 匯入的文件（PDF／Word／PPT）建立成一篇筆記 */
+    suspend fun createDocumentNote(title: String, content: String, folderId: Long?, sourceType: Int, sourcePath: String, pageCount: Int): Long =
+        dao.insertNote(NoteEntity(title = title, content = content, folderId = folderId, sourceType = sourceType, sourcePath = sourcePath, pageCount = pageCount))
+
+    /** 刪掉沒有任何筆記引用的匯入檔（例如備份「取代」還原後留下的舊檔） */
+    suspend fun cleanupOrphanFiles() {
+        val used = dao.allSourcePaths().toSet()
+        DocumentFiles.root(context).listFiles()?.forEach { f ->
+            if (f.isFile && f.path !in used) DocumentFiles.delete(f.path)
+        }
+    }
     suspend fun saveReadPosition(id: Long, pos: Int) = dao.saveReadPosition(id, pos)
     suspend fun saveLessonState(id: Long, page: Int, completed: Set<String>) =
         dao.saveLessonState(id, page, completed.joinToString("\n"))

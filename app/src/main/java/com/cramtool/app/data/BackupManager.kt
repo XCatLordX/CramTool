@@ -6,6 +6,7 @@ import com.cramtool.app.data.BackupCodec.entity
 
 /** 匯出／還原所有資料（題庫、題目、作答紀錄、資料夾、筆記、設定） */
 class BackupManager(
+    private val context: android.content.Context,
     private val db: AppDatabase,
     private val repo: Repository,
     private val notes: NoteRepository,
@@ -62,7 +63,13 @@ class BackupManager(
                 val parent = f.parentId?.let { folderMap[it] }
                 if (parent != null) noteDao.moveFolder(folderMap.getValue(f.id), parent)
             }
-            file.notes.forEach { n -> noteDao.insertNote(n.entity(n.folderId?.let { folderMap[it] })) }
+            file.notes.forEach { n ->
+                // 匯入的文件：若原始檔還在這支手機上，複製一份給新筆記（各自擁有檔案，刪除時互不影響）
+                val newPath = n.sourcePath?.let { DocumentFiles.duplicate(context, it) }
+                val content = if (n.sourcePath != null && newPath != null)
+                    n.content.replace(DocumentFiles.mediaDir(n.sourcePath).path, DocumentFiles.mediaDir(newPath).path) else n.content
+                noteDao.insertNote(n.entity(n.folderId?.let { folderMap[it] }, newPath, content))
+            }
         }
         if (replace) importSettings(file.settings)
         return BackupSummary.of(file)

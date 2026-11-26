@@ -11,6 +11,8 @@ sealed class MdBlock {
     data class Math(val tex: String) : MdBlock()
     data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock()
     data object Rule : MdBlock()
+    /** 圖片：![alt](路徑)，路徑為 App 內部檔案（匯入 Word／PPT 時解出） */
+    data class Image(val alt: String, val src: String) : MdBlock()
 }
 
 data class OutlineEntry(val level: Int, val title: String, val blockIndex: Int)
@@ -23,6 +25,7 @@ object Markdown {
     private val ORDERED = Regex("""^(\s*)(\d{1,3})[.)]\s+(.*)$""")
     private val TASK = Regex("""^\[([ xX])]\s+(.*)$""")
     private val FENCE = Regex("""^\s*(```|~~~)\s*([\w+#.-]*).*$""")
+    private val IMAGE = Regex("""^!\[([^\]]*)]\(([^)\s]+)\)$""")
     private val TABLE_SEP = Regex("""^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$""")
 
     fun parse(src: String): List<MdBlock> {
@@ -89,6 +92,13 @@ object Markdown {
             }
 
             if (RULE.matches(line)) { flushPara(); out += MdBlock.Rule; i++; continue }
+
+            val img = IMAGE.matchEntire(trimmed)
+            if (img != null) {
+                flushPara()
+                out += MdBlock.Image(img.groupValues[1], img.groupValues[2])
+                i++; continue
+            }
 
             // 表格：本行有 | 且下一行是分隔線
             if (trimmed.contains('|') && i + 1 < lines.size && TABLE_SEP.matches(lines[i + 1])) {

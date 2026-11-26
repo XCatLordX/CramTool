@@ -1,5 +1,16 @@
 package com.cramtool.app.ui.notes
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.material.icons.filled.UploadFile
+import com.cramtool.app.SessionStore
+import com.cramtool.app.data.SOURCE_DOCX
+import com.cramtool.app.data.SOURCE_PDF
+import com.cramtool.app.data.SOURCE_PPTX
+import com.cramtool.app.docs.DocumentImporter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -121,6 +132,31 @@ fun NotesScreen(
     var selMenu by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<Pair<String, Any?>?>(null) }
 
+    var addMenu by remember { mutableStateOf(false) }
+    var importing by remember { mutableStateOf<String?>(null) }
+    val app = cramApp()
+    fun importDoc(uri: android.net.Uri) {
+        importing = DocumentImporter.displayName(ctx, uri) ?: "文件"
+        scope.launch {
+            val r = runCatching { DocumentImporter.import(ctx, uri, folderId, repo) }
+            importing = null
+            r.onSuccess { d ->
+                mainToast(ctx, "已匯入「${d.title}」" + when (d.type) {
+                    SOURCE_PDF -> "（${d.pages} 頁）"
+                    SOURCE_PPTX -> "（${d.pages} 張投影片）"
+                    else -> ""
+                })
+                onOpenNote(d.noteId)
+            }.onFailure { mainToast(ctx, it.message ?: "匯入失敗", long = true) }
+        }
+    }
+    val docPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::importDoc) }
+    // 從其他 App 分享／開啟方式帶進來的文件（只在最上層筆記頁處理）
+    val pendingDoc by SessionStore.pendingDocument.collectAsState()
+    LaunchedEffect(pendingDoc) {
+        if (folderId == null) pendingDoc?.let { SessionStore.pendingDocument.value = null; importDoc(it) }
+    }
+
     val selection = remember { SelectionState() }
     val drag = remember { DragMoveState() }
     val list = rememberLazyListState()
@@ -235,12 +271,26 @@ fun NotesScreen(
             }
         },
         floatingActionButton = {
-            if (!searching && !selection.active) ExtendedFloatingActionButton(
-                modifier = Modifier.horizontalSafe(),
-                onClick = { onNewNote(folderId) },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("新增筆記") },
-            )
+            if (!searching && !selection.active) Box {
+                ExtendedFloatingActionButton(
+                    modifier = Modifier.horizontalSafe(),
+                    onClick = { addMenu = true },
+                    icon = { Icon(Icons.Default.Add, null) },
+                    text = { Text("新增") },
+                )
+                DropdownMenu(addMenu, { addMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("新增筆記（貼上 Markdown）") },
+                        leadingIcon = { Icon(Icons.Default.Description, null) },
+                        onClick = { addMenu = false; onNewNote(folderId) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("匯入 PDF／Word／PPT") },
+                        leadingIcon = { Icon(Icons.Default.UploadFile, null) },
+                        onClick = { addMenu = false; docPicker.launch(DocumentImporter.PICKER_MIMES) },
+                    )
+                }
+            }
         },
         bottomBar = { if (!selection.active) bottomBar() },
     ) { pad ->
@@ -325,6 +375,20 @@ fun NotesScreen(
         }
     }
 
+    importing?.let { name ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            title = { Text("匯入中…") },
+            text = {
+                Column {
+                    Text("「$name」", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
     val (kind, target) = dialog ?: (null to null)
     val close = { dialog = null }
     val selectedExclude = selFolders.flatMap { NoteRepository.descendantsOf(it, allFolders) + it }.toSet()
@@ -387,6 +451,14 @@ fun NotesScreen(
     }
 }
 
+@Composable
+private fun NoteIcon(sourceType: Int) = when (sourceType) {
+    SOURCE_PDF -> Icon(Icons.Default.PictureAsPdf, "PDF", tint = Color(0xFFD32F2F))
+    SOURCE_DOCX -> Icon(Icons.Default.Article, "Word", tint = Color(0xFF1565C0))
+    SOURCE_PPTX -> Icon(Icons.Default.Slideshow, "PowerPoint", tint = Color(0xFFE65100))
+    else -> Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary)
+}
+
 /** 列的顯示狀態 */
 private data class RowState(
     val selecting: Boolean = false,
@@ -422,15 +494,17 @@ private fun NoteRow(n: NoteSummary, subtitle: String?, state: RowState, onClick:
             .drop(1).take(2).joinToString(" ").let { Markdown.plainText(it) }
     }
     ListRow(
-        icon = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
+        icon = { NoteIcon(n.sourceType) },
         title = n.title,
         subtitle = listOfNotNull(
             subtitle,
-            if (n.pageCount >= 2) "學習進度 ${n.completedCount}/${n.pageCount} 節" else null,
+            when (n.sourceType) { SOURCE_PDF -> "PDF"; SOURCE_DOCX -> "Word"; SOURCE_PPTX -> "PowerPoint"; else -> null },
+            if (n.sourceType == SOURCE_PDF) "${n.pageCount} 頁"
+            else if (n.pageCount >= 2) "${if (n.sourceType == SOURCE_PPTX) "已看" else "學習進度"} ${n.completedCount}/${n.pageCount} ${if (n.sourceType == SOURCE_PPTX) "張" else "節"}" else null,
             formatTime(n.updatedAt),
-            "約 ${n.length} 字",
+            if (n.sourceType == SOURCE_PDF) null else "約 ${n.length} 字",
         ).joinToString(" · "),
-        preview = preview.ifBlank { null },
+        preview = if (n.sourceType == SOURCE_PDF) null else preview.ifBlank { null },
         state = state,
         onClick = onClick,
         onLongClick = onLongClick,

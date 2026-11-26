@@ -44,6 +44,12 @@ fun CramNavHost() {
         }
     }
 
+    // 分享／開啟方式帶進來的文件：切到筆記頁，由筆記頁執行匯入
+    val pendingDoc by SessionStore.pendingDocument.collectAsState()
+    LaunchedEffect(pendingDoc) {
+        if (pendingDoc != null && nav.currentDestination?.route != "notes") nav.switchTab(MainTab.NOTES)
+    }
+
     fun startQuiz(req: QuizRequest) {
         SessionStore.quiz = req
         nav.navigate("quiz")

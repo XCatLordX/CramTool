@@ -65,6 +65,8 @@ data class NoteDto(
     val lessonPage: Int = 0,
     val completedPages: String = "",
     val pageCount: Int = 0,
+    val sourceType: Int = 0,
+    val sourcePath: String? = null,
 )
 
 @Serializable
@@ -116,10 +118,10 @@ object BackupCodec {
         attempts = attempts, correctCount = correctCount, wrongCount = wrongCount, lastAnsweredAt = lastAnsweredAt,
         lastResultCorrect = lastResultCorrect, inWrongBook = inWrongBook, reviewStreak = reviewStreak, starred = starred,
     )
-    fun NoteDto.entity(newFolderId: Long?) = NoteEntity(
-        folderId = newFolderId, title = title, content = content, createdAt = createdAt, updatedAt = updatedAt,
+    fun NoteDto.entity(newFolderId: Long?, newSourcePath: String? = null, newContent: String = content) = NoteEntity(
+        folderId = newFolderId, title = title, content = newContent, createdAt = createdAt, updatedAt = updatedAt,
         lastOpenedAt = lastOpenedAt, readPosition = readPosition, viewMode = viewMode, lessonPage = lessonPage,
-        completedPages = completedPages, pageCount = pageCount,
+        completedPages = completedPages, pageCount = pageCount, sourceType = sourceType, sourcePath = newSourcePath,
     )
 }
 

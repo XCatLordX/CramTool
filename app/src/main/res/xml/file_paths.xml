@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 匯入的 PDF／Word／PPT，供「用其他 App 開啟原始檔」分享 -->
+    <files-path name="docs" path="docs/" />
+</paths>

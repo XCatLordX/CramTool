@@ -28,6 +28,8 @@ object SessionStore {
     val pendingImport = MutableStateFlow<String?>(null)
     /** 已判定為筆記、等待新增筆記畫面接收的文字 */
     val pendingNote = MutableStateFlow<String?>(null)
+    /** 由分享／開啟方式帶進來、等待匯入的 PDF／Word／PPT */
+    val pendingDocument = MutableStateFlow<android.net.Uri?>(null)
 
     /** 分享進來的文字看起來像題庫 JSON 嗎？否則當作筆記 */
     fun looksLikeQuestionBank(text: String): Boolean {

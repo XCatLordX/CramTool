@@ -49,7 +49,7 @@ interface NoteDao {
     @Query(
         """
         SELECT id, folderId, title, updatedAt, lastOpenedAt, LENGTH(content) AS length,
-          SUBSTR(content, 1, 300) AS preview, pageCount, completedPages
+          SUBSTR(content, 1, 300) AS preview, pageCount, completedPages, sourceType
         FROM notes
         WHERE (:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId
         """
@@ -59,7 +59,7 @@ interface NoteDao {
     @Query(
         """
         SELECT id, folderId, title, updatedAt, lastOpenedAt, LENGTH(content) AS length,
-          SUBSTR(content, 1, 300) AS preview, pageCount, completedPages
+          SUBSTR(content, 1, 300) AS preview, pageCount, completedPages, sourceType
         FROM notes
         WHERE title LIKE '%' || :q || '%' OR content LIKE '%' || :q || '%'
         ORDER BY updatedAt DESC LIMIT 200
@@ -105,6 +105,12 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes")
     suspend fun getAllNotes(): List<NoteEntity>
+
+    @Query("SELECT sourcePath FROM notes WHERE sourcePath IS NOT NULL")
+    suspend fun allSourcePaths(): List<String>
+
+    @Query("SELECT sourcePath FROM notes WHERE id IN (:ids) AND sourcePath IS NOT NULL")
+    suspend fun sourcePathsOf(ids: List<Long>): List<String>
 
     @Query("DELETE FROM notes")
     suspend fun deleteAllNotes()

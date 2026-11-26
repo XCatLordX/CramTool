@@ -70,7 +70,8 @@ class LessonFlowTest {
     @Test fun lessonFlow() {
         rule.onNodeWithText("筆記").performClick()
         waitText("還沒有筆記")
-        rule.onNodeWithText("新增筆記", useUnmergedTree = true).performClick()
+        rule.onNodeWithText("新增", useUnmergedTree = true).performClick()
+        rule.onNodeWithText("新增筆記（貼上 Markdown）").performClick()
         waitText("載入範例課程")
         rule.onNodeWithText("載入範例課程").performScrollTo().performClick()
         waitText("資料結構入門（範例課程）")
