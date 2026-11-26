@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.cramtool.app.QuizRequest
 import com.cramtool.app.data.WrongItem
 import com.cramtool.app.ui.EmptyState
+import com.cramtool.app.ui.bottomBarInsets
 import com.cramtool.app.ui.cramApp
 import com.cramtool.app.ui.quiz.AnswerReveal
 import kotlinx.coroutines.launch
@@ -78,7 +79,7 @@ fun WrongBookScreen(onBack: () -> Unit, onStart: (QuizRequest) -> Unit) {
         bottomBar = {
             if (shown.isNotEmpty()) Surface(tonalElevation = 3.dp) {
                 Button(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.bottomBarInsets().fillMaxWidth().padding(16.dp),
                     onClick = { onStart(QuizRequest("錯題複習", shown.map { it.question.id }.shuffled(), isReview = true)) },
                 ) {
                     Icon(Icons.Default.PlayArrow, null)

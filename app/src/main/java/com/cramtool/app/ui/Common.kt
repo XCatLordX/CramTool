@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,3 +53,13 @@ fun EmptyState(title: String, body: String, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * 底部按鈕列用：避開手機的導覽列（home 鍵／手勢條），鍵盤彈出時則改為避開鍵盤。
+ * 用 union 取兩者較大值，避免鍵盤開啟時重複加上導覽列高度。
+ */
+@Composable
+fun Modifier.bottomBarInsets(): Modifier = this.windowInsetsPadding(
+    androidx.compose.foundation.layout.WindowInsets.navigationBars
+        .union(androidx.compose.foundation.layout.WindowInsets.ime)
+)

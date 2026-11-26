@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cramtool.app.QuizRequest
 import com.cramtool.app.data.QuestionEntity
+import com.cramtool.app.ui.bottomBarInsets
 import com.cramtool.app.ui.cramApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -108,7 +109,7 @@ fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit,
             Surface(tonalElevation = 3.dp) {
                 Button(
                     enabled = take > 0,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.bottomBarInsets().fillMaxWidth().padding(16.dp),
                     onClick = {
                         val picked = (if (shuffle) pool.shuffled() else pool).take(take).map { it.id }
                         onStart(QuizRequest(bank?.name ?: "刷題", picked))

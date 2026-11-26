@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -61,6 +60,7 @@ import com.cramtool.app.QuizRequest
 import com.cramtool.app.data.QuestionEntity
 import com.cramtool.app.data.QuestionType
 import com.cramtool.app.ui.EmptyState
+import com.cramtool.app.ui.bottomBarInsets
 import com.cramtool.app.ui.cramViewModel
 import com.cramtool.app.ui.theme.CorrectGreen
 import com.cramtool.app.ui.theme.WrongRed
@@ -103,7 +103,7 @@ fun QuizScreen(onExit: () -> Unit, onRestart: (QuizRequest) -> Unit) {
         bottomBar = {
             if (q != null) {
                 Surface(tonalElevation = 3.dp) {
-                    BottomActions(vm, q, Modifier.padding(16.dp).imePadding())
+                    BottomActions(vm, q, Modifier.bottomBarInsets().padding(16.dp))
                 }
             }
         },
