@@ -66,6 +66,16 @@
 
 推送到 GitHub 後，Actions 會自動建置 APK，可在該次 workflow 的 Artifacts 下載。
 
+### 正式簽章
+
+release 版使用固定的正式金鑰簽章，才能持續覆蓋更新而不清除資料。金鑰與密碼**不在此 repo 中**：
+
+- 本機：在專案根目錄建立 `keystore.properties`（已加入 `.gitignore`），內容為
+  `storeFile`、`storePassword`、`keyAlias`、`keyPassword`，再執行 `./gradlew assembleRelease`。
+- GitHub Actions：在 repo Secrets 設定 `CRAMTOOL_KEYSTORE_BASE64`、`CRAMTOOL_KEYSTORE_PASSWORD`、
+  `CRAMTOOL_KEY_ALIAS`、`CRAMTOOL_KEY_PASSWORD`，即會額外產出 `CramTool-release-apk`。
+- 未設定時 release APK 不會簽章；請只安裝正式簽章版，不要安裝 debug 版（簽章不同會無法覆蓋更新）。
+
 ## 技術
 
 Kotlin · Jetpack Compose (Material 3) · Room · Navigation Compose · kotlinx.serialization

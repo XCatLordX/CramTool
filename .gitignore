@@ -12,3 +12,9 @@ build/
 *.jks
 *.keystore
 .kotlin/
+
+# 正式簽章（絕不可提交）
+keystore.properties
+*.p12
+*.jks.base64.txt
+signing/

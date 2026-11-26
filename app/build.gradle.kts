@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,16 +16,43 @@ android {
         applicationId = "com.cramtool.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.1"
+        versionCode = 7
+        versionName = "0.6.0"
+    }
+
+    // 正式簽章：優先讀環境變數（GitHub Actions），否則讀專案根目錄的 keystore.properties（已加入 .gitignore）
+    // 金鑰與密碼絕不可提交到 Git
+    val keyProps = Properties().apply {
+        rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    fun signingValue(env: String, prop: String): String? = System.getenv(env)?.takeIf { it.isNotBlank() } ?: keyProps.getProperty(prop)
+    val releaseStoreFile = signingValue("CRAMTOOL_KEYSTORE_FILE", "storeFile")
+    val hasReleaseKey = releaseStoreFile != null && file(releaseStoreFile).exists()
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = signingValue("CRAMTOOL_KEYSTORE_PASSWORD", "storePassword")
+                keyAlias = signingValue("CRAMTOOL_KEY_ALIAS", "keyAlias")
+                keyPassword = signingValue("CRAMTOOL_KEY_PASSWORD", "keyPassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            // 先不開啟 R8 壓縮：無法在實機驗證壓縮後是否正常，之後另外處理
+            isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // 未設定正式簽章時，先用 debug key 簽，方便直接安裝測試
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                logger.warn("CramTool: 找不到正式簽章設定，release APK 將不會簽章（無法安裝）。")
+            }
         }
     }
     compileOptions {

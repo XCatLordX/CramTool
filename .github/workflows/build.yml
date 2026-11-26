@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CRAMTOOL_KEYSTORE_BASE64: ${{ secrets.CRAMTOOL_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,6 +35,25 @@ jobs:
         with:
           name: CramTool-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      # 正式簽章版：需要在 GitHub → Settings → Secrets and variables → Actions 設定
+      # CRAMTOOL_KEYSTORE_BASE64、CRAMTOOL_KEYSTORE_PASSWORD、CRAMTOOL_KEY_ALIAS、CRAMTOOL_KEY_PASSWORD
+      - name: Build signed release APK
+        if: env.CRAMTOOL_KEYSTORE_BASE64 != ''
+        env:
+          CRAMTOOL_KEYSTORE_PASSWORD: ${{ secrets.CRAMTOOL_KEYSTORE_PASSWORD }}
+          CRAMTOOL_KEY_ALIAS: ${{ secrets.CRAMTOOL_KEY_ALIAS }}
+          CRAMTOOL_KEY_PASSWORD: ${{ secrets.CRAMTOOL_KEY_PASSWORD }}
+        run: |
+          echo "$CRAMTOOL_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          export CRAMTOOL_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          ./gradlew assembleRelease
+          rm -f "$RUNNER_TEMP/release.jks"
+      - name: Upload signed release APK
+        if: env.CRAMTOOL_KEYSTORE_BASE64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: CramTool-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
       - name: Fail if tests failed
         if: steps.tests.outcome == 'failure'
         run: exit 1
