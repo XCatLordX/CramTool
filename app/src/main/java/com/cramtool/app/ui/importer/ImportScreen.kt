@@ -190,8 +190,10 @@ fun ImportScreen(onBack: () -> Unit, onImported: (Long) -> Unit) {
                         busy = true
                         scope.launch {
                             val id = repo.importQuestions(bankName.trim(), r.description, r.questions, targetBank)
-                            Toast.makeText(ctx, "已匯入 ${r.questions.size} 題", Toast.LENGTH_SHORT).show()
-                            onImported(id)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(ctx, "已匯入 ${r.questions.size} 題", Toast.LENGTH_SHORT).show()
+                                onImported(id)
+                            }
                         }
                     },
                 ) { Text("匯入 ${r.questions.size} 題") }

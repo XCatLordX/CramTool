@@ -49,7 +49,9 @@ import androidx.compose.ui.unit.dp
 import com.cramtool.app.QuizRequest
 import com.cramtool.app.data.QuestionEntity
 import com.cramtool.app.ui.cramApp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class Source(val label: String, val match: (QuestionEntity) -> Boolean) {
     ALL("全部", { true }),
@@ -192,7 +194,7 @@ fun BankScreen(bankId: Long, onBack: () -> Unit, onStart: (QuizRequest) -> Unit,
             scope.launch { repo.resetBankStats(bankId) }
         }
         "delete" -> ConfirmDialog("刪除題庫？", "「${bank?.name}」及其所有題目與紀錄將永久刪除。", { dialog = null }) {
-            scope.launch { repo.deleteBank(bankId); onBack() }
+            scope.launch { repo.deleteBank(bankId); withContext(Dispatchers.Main) { onBack() } }
         }
     }
 }
