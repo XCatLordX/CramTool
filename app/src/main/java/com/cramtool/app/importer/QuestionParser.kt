@@ -25,6 +25,8 @@ data class ParseResult(
     val description: String,
     val questions: List<ParsedQuestion>,
     val warnings: List<String>,
+    /** 內容被截斷（例如剪貼簿或 LLM 輸出長度限制），只救回完整的題目 */
+    val truncated: Boolean = false,
 )
 
 class ParseException(message: String) : Exception(message)
@@ -60,6 +62,8 @@ object QuestionParser {
         val root = try {
             json.parseToJsonElement(extractJson(raw))
         } catch (e: Exception) {
+            // 整份解析失敗：多半是內容被截斷，嘗試救回完整的題目
+            salvage(raw)?.let { return it }
             throw ParseException("無法解析 JSON：${e.message?.lineSequence()?.firstOrNull() ?: "格式錯誤"}")
         }
 
@@ -97,6 +101,64 @@ object QuestionParser {
             questions = questions,
             warnings = warnings,
         )
+    }
+
+    /**
+     * 截斷救援：找到題目陣列後，逐一取出「括號完整配對」的題目物件分別解析，
+     * 遇到不完整的最後一題就停止。完全救不到題目則回傳 null。
+     */
+    internal fun salvage(raw: String): ParseResult? {
+        val s = raw.removePrefix("\uFEFF")
+        // 找題目陣列的起點：優先找 "questions": [，否則第一個 [
+        val keyMatch = Regex("\"(?:${LIST_KEYS.joinToString("|")})\"\\s*:\\s*\\[").find(s)
+        val arrStart = keyMatch?.let { it.range.last } ?: s.indexOf('[').takeIf { it >= 0 } ?: return null
+        val objects = mutableListOf<String>()
+        var depth = 0; var inStr = false; var esc = false; var objStart = -1
+        var i = arrStart + 1
+        while (i < s.length) {
+            val c = s[i]
+            if (inStr) {
+                when { esc -> esc = false; c == '\\' -> esc = true; c == '"' -> inStr = false }
+            } else when (c) {
+                '"' -> inStr = true
+                '{' -> { if (depth == 0) objStart = i; depth++ }
+                '}' -> { depth--; if (depth == 0 && objStart >= 0) { objects += s.substring(objStart, i + 1); objStart = -1 } }
+                ']' -> if (depth == 0) break // 陣列正常結束（不是截斷，可能是其他格式問題）
+            }
+            i++
+        }
+        val truncated = i >= s.length
+        val warnings = mutableListOf<String>()
+        val questions = mutableListOf<ParsedQuestion>()
+        objects.forEachIndexed { idx, text ->
+            val obj = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+            if (obj == null) { warnings += "第 ${idx + 1} 題：格式錯誤，已略過"; return@forEachIndexed }
+            try { questions += parseQuestion(obj) } catch (e: ParseException) { warnings += "第 ${idx + 1} 題：${e.message}，已略過" }
+        }
+        if (questions.isEmpty()) return null
+        if (truncated) warnings += "內容在第 ${objects.size + 1} 題被截斷，已救回前 ${questions.size} 題"
+        fun header(keys: List<String>) = keys.firstNotNullOfOrNull { k ->
+            Regex("\"$k\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"").find(s.substring(0, arrStart))?.groupValues?.get(1)
+        }?.let { v -> runCatching { (json.parseToJsonElement("\"$v\"") as JsonPrimitive).content }.getOrDefault(v) }
+        return ParseResult(
+            bankName = header(BANK_KEYS)?.takeIf { it.isNotBlank() },
+            description = header(DESC_KEYS).orEmpty(),
+            questions = questions,
+            warnings = warnings,
+            truncated = truncated,
+        )
+    }
+
+    /** 合併多段匯入結果（分批貼上時用）：題目文字相同的視為重複，略過 */
+    fun merge(a: ParseResult, b: ParseResult): Pair<ParseResult, Int> {
+        val seen = a.questions.map { it.stem.trim() }.toMutableSet()
+        val added = b.questions.filter { seen.add(it.stem.trim()) }
+        return a.copy(
+            bankName = a.bankName ?: b.bankName,
+            questions = a.questions + added,
+            warnings = a.warnings.filterNot { it.contains("被截斷") } + b.warnings,
+            truncated = b.truncated,
+        ) to (b.questions.size - added.size)
     }
 
     /** 支援 {"chapters":[{"name":"Ch1","questions":[...]}]} 這種巢狀格式，攤平並把章節名稱帶入 */

@@ -77,18 +77,40 @@ fun ImportScreen(onBack: () -> Unit, onImported: (Long) -> Unit) {
     var busy by remember { mutableStateOf(false) }
     val banks by produceState(emptyList<BankEntity>()) { value = repo.getBanks() }
 
+    var showRaw by remember { mutableStateOf(false) }
+    var parts by remember { mutableStateOf(0) }
+
     fun runParse(text: String) {
         raw = text
+        showRaw = false
         try {
             val r = QuestionParser.parse(text)
             result = r
+            parts = 1
             error = null
             if (bankName.isBlank()) bankName = r.bankName ?: "新題庫"
         } catch (e: ParseException) {
             result = null
-            error = e.message
+            error = e.message + "\n（收到 ${"%,d".format(text.length)} 字）"
         }
     }
+
+    /** 分批貼上：把新的一段合併進目前結果（重複題目略過） */
+    fun appendPart(text: String) {
+        val base = result ?: return runParse(text)
+        try {
+            val (merged, dup) = QuestionParser.merge(base, QuestionParser.parse(text))
+            result = merged
+            parts++
+            error = null
+            Toast.makeText(ctx, "已合併第 $parts 段：共 ${merged.questions.size} 題" + if (dup > 0) "（略過重複 $dup 題）" else "", Toast.LENGTH_SHORT).show()
+        } catch (e: ParseException) {
+            Toast.makeText(ctx, "這段無法解析：${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun clipboardText(): String? = (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+        .primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()
 
     val pending by SessionStore.pendingImport.collectAsState()
     LaunchedEffect(pending) {
@@ -145,8 +167,7 @@ fun ImportScreen(onBack: () -> Unit, onImported: (Long) -> Unit) {
                     Text("  選擇檔案")
                 }
                 OutlinedButton(onClick = {
-                    val clip = (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                        .primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()
+                    val clip = clipboardText()
                     if (clip.isNullOrBlank()) Toast.makeText(ctx, "剪貼簿是空的", Toast.LENGTH_SHORT).show()
                     else runParse(clip)
                 }) {
@@ -154,13 +175,23 @@ fun ImportScreen(onBack: () -> Unit, onImported: (Long) -> Unit) {
                     Text("  從剪貼簿貼上")
                 }
             }
-            OutlinedTextField(
-                value = raw,
-                onValueChange = { raw = it; result = null; error = null },
-                label = { Text("或直接在這裡貼上 JSON") },
-                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 240.dp),
-            )
+            if (raw.length > LARGE_TEXT && !showRaw) {
+                // 超長內容不放進文字框（避免卡頓），只顯示字數
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("已載入 ${"%,d".format(raw.length)} 字的內容", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = { showRaw = true }) { Text("顯示原文") }
+                    }
+                }
+            } else {
+                OutlinedTextField(
+                    value = raw,
+                    onValueChange = { raw = it; result = null; error = null },
+                    label = { Text("或直接在這裡貼上 JSON") },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 240.dp),
+                )
+            }
             if (result == null && raw.isNotBlank()) {
                 Button(onClick = { runParse(raw) }) { Text("解析") }
             }
@@ -173,6 +204,25 @@ fun ImportScreen(onBack: () -> Unit, onImported: (Long) -> Unit) {
 
             result?.let { r ->
                 Preview(r)
+                if (r.truncated) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("內容不完整，已救回 ${r.questions.size} 題", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "貼上的內容可能被剪貼簿或 LLM 的輸出長度截斷了。請 LLM「從第 ${r.questions.size + 1} 題繼續，輸出剩下題目的完整 JSON」，" +
+                                    "複製後按下方「再貼一段（合併）」。也可以請 LLM 把 JSON 存成檔案，用「選擇檔案」匯入。",
+                                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
+                OutlinedButton(onClick = {
+                    val clip = clipboardText()
+                    if (clip.isNullOrBlank()) Toast.makeText(ctx, "剪貼簿是空的", Toast.LENGTH_SHORT).show() else appendPart(clip)
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.ContentPaste, null)
+                    Text("  再貼一段（合併）" + if (parts > 1) "・已合併 $parts 段" else "")
+                }
                 Text("第 3 步：匯入到", style = MaterialTheme.typography.titleSmall)
                 TargetOption("建立新題庫", targetBank == null) { targetBank = null }
                 if (targetBank == null) {
@@ -202,6 +252,9 @@ fun ImportScreen(onBack: () -> Unit, onImported: (Long) -> Unit) {
         }
     }
 }
+
+/** 超過這個字數就不放進文字框顯示 */
+private const val LARGE_TEXT = 4_000
 
 @Composable
 private fun Preview(r: ParseResult) {

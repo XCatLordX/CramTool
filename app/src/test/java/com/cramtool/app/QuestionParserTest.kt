@@ -95,4 +95,31 @@ class QuestionParserTest {
     @Test(expected = ParseException::class) fun noJson() {
         QuestionParser.parse("抱歉我無法產生題目")
     }
+
+    @Test fun truncatedJsonSalvagesCompleteQuestions() {
+        val full = listOf("../samples/sample_bank.json", "samples/sample_bank.json").map(::File).first { it.exists() }.readText()
+        // 在第 4 題中間截斷
+        val cut = full.substring(0, full.indexOf("下列哪一種資料結構") + 5)
+        val r = QuestionParser.parse(cut)
+        assertTrue(r.truncated)
+        assertEquals(3, r.questions.size)
+        assertEquals("資料結構 期中考（範例）", r.bankName)
+        assertTrue(r.warnings.any { it.contains("第 4 題被截斷") })
+        // 包在 ```json 裡也能救
+        assertEquals(3, QuestionParser.parse("```json\n$cut").questions.size)
+    }
+
+    @Test fun nothingSalvageableStillErrors() {
+        val e = runCatching { QuestionParser.parse("""{"bank":"x","questions":[{"question":"半""") }.exceptionOrNull()
+        assertTrue(e is ParseException)
+    }
+
+    @Test fun mergeAppendsAndSkipsDuplicates() {
+        val a = QuestionParser.parse("""{"bank":"B","questions":[{"question":"q1","answer":true},{"question":"q2","answer":false}]}""")
+        val b = QuestionParser.parse("""{"questions":[{"question":"q2","answer":false},{"question":"q3","answer":true}]}""")
+        val (m, dup) = QuestionParser.merge(a, b)
+        assertEquals(listOf("q1", "q2", "q3"), m.questions.map { it.stem })
+        assertEquals(1, dup)
+        assertEquals("B", m.bankName)
+    }
 }
