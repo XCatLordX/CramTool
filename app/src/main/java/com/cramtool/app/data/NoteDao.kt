@@ -102,4 +102,13 @@ interface NoteDao {
 
     @Query("DELETE FROM notes WHERE id = :id")
     suspend fun deleteNote(id: Long)
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotes(): List<NoteEntity>
+
+    @Query("DELETE FROM notes")
+    suspend fun deleteAllNotes()
+
+    @Query("DELETE FROM folders")
+    suspend fun deleteAllFolders()
 }

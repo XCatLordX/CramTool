@@ -4,6 +4,7 @@ import android.app.Application
 import com.cramtool.app.audio.SoundEffects
 import com.cramtool.app.data.AppDatabase
 import com.cramtool.app.data.AppSettings
+import com.cramtool.app.data.BackupManager
 import com.cramtool.app.data.NoteRepository
 import com.cramtool.app.data.Repository
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,8 @@ class CramApp : Application() {
         private set
     lateinit var sounds: SoundEffects
         private set
+    lateinit var backup: BackupManager
+        private set
 
     /** 不隨畫面結束而取消的 scope，用來確保作答紀錄寫入 */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -30,5 +33,6 @@ class CramApp : Application() {
         val db = AppDatabase.create(this)
         repository = Repository(this, db)
         notes = NoteRepository(this, db)
+        backup = BackupManager(db, repository, notes, settings)
     }
 }

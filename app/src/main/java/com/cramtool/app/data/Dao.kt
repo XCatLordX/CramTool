@@ -35,6 +35,12 @@ interface CramDao {
     @Query("DELETE FROM banks WHERE id = :id")
     suspend fun deleteBank(id: Long)
 
+    @Query("DELETE FROM banks")
+    suspend fun deleteAllBanks()
+
+    @Query("SELECT * FROM questions ORDER BY bankId, orderInBank")
+    suspend fun getAllQuestions(): List<QuestionEntity>
+
     // ---------- 題目 ----------
     @Insert
     suspend fun insertQuestions(questions: List<QuestionEntity>)

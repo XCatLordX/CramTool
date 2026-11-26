@@ -23,12 +23,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,6 +57,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.cramtool.app.audio.Cue
+import com.cramtool.app.data.BackupCodec
+import com.cramtool.app.data.BackupFile
+import com.cramtool.app.data.BackupSummary
 import com.cramtool.app.data.SoundStyle
 import com.cramtool.app.data.ThemeMode
 import com.cramtool.app.importer.PromptTemplate
@@ -62,6 +68,9 @@ import com.cramtool.app.ui.cramApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +93,50 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     var dialog by remember { mutableStateOf<String?>(null) }
     var pickingFor by remember { mutableStateOf<Cue?>(null) }
+    var pendingRestore by remember { mutableStateOf<BackupFile?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    // ---- 備份：存成 JSON 檔（使用者自選位置：下載、雲端硬碟…）
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            val result = runCatching {
+                val file = app.backup.export(appVersion(ctx).first)
+                withContext(Dispatchers.IO) {
+                    ctx.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(BackupCodec.encode(file).toByteArray()) }
+                }
+                BackupSummary.of(file)
+            }
+            busy = false
+            result.onSuccess { toast(ctx, "已備份：$it") }
+                .onFailure { Toast.makeText(ctx, "備份失敗：${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
+    // ---- 還原：讀檔 → 預覽 → 選合併或取代
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = runCatching {
+                val text = withContext(Dispatchers.IO) {
+                    ctx.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+                }
+                withContext(Dispatchers.Default) { BackupCodec.decode(text) }
+            }
+            result.onSuccess { pendingRestore = it }
+                .onFailure { Toast.makeText(ctx, it.message ?: "無法讀取備份檔", Toast.LENGTH_LONG).show() }
+        }
+    }
+    fun doRestore(file: BackupFile, replace: Boolean) {
+        pendingRestore = null
+        busy = true
+        scope.launch {
+            val r = runCatching { app.backup.restore(file, replace) }
+            busy = false
+            r.onSuccess { toast(ctx, (if (replace) "已還原：" else "已合併：") + it) }
+                .onFailure { Toast.makeText(ctx, "還原失敗，資料未變更：${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val cue = pickingFor ?: return@rememberLauncherForActivityResult
@@ -214,6 +267,26 @@ fun SettingsScreen(onBack: () -> Unit) {
             item { Section("資料") }
             item {
                 ListItem(
+                    headlineContent = { Text("匯出備份") },
+                    supportingContent = { Text("題庫、作答紀錄、筆記與設定存成一個檔案，可存到雲端硬碟或下載資料夾") },
+                    leadingContent = { Icon(Icons.Default.Backup, null) },
+                    modifier = Modifier.clickable(enabled = !busy) {
+                        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault()).format(Date())
+                        exporter.launch("CramTool-備份-$stamp.json")
+                    },
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text("從備份還原") },
+                    supportingContent = { Text("選擇先前匯出的備份檔，可合併或取代現有資料") },
+                    leadingContent = { Icon(Icons.Default.Restore, null) },
+                    modifier = Modifier.clickable(enabled = !busy) { importer.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                )
+            }
+            if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) }
+            item {
+                ListItem(
                     headlineContent = { Text("清除所有作答紀錄") },
                     supportingContent = { Text("所有題庫的作答次數、錯題本會清空；題目、收藏與筆記保留") },
                     modifier = Modifier.clickable { dialog = "resetStats" },
@@ -264,6 +337,41 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
         }
+    }
+
+    pendingRestore?.let { file ->
+        var confirmReplace by remember(file) { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { pendingRestore = null },
+            title = { Text(if (confirmReplace) "確定要取代全部資料？" else "從備份還原") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!confirmReplace) {
+                        Text("備份時間：" + SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(file.exportedAt)) +
+                            if (file.appVersion.isNotBlank()) "（v${file.appVersion}）" else "")
+                        Text("內容：" + BackupSummary.of(file))
+                        Text("・合併：加入現有資料，原有資料不變（重複還原會出現重複的題庫）。", style = MaterialTheme.typography.bodySmall)
+                        Text("・取代：先清空目前所有題庫、筆記與作答紀錄，再完整還原，並套用備份中的設定。", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        Text("目前 App 內的所有題庫、作答紀錄、資料夾與筆記會被刪除，換成備份內容。此動作無法復原。")
+                    }
+                }
+            },
+            confirmButton = {
+                if (!confirmReplace) {
+                    TextButton(onClick = { doRestore(file, replace = false) }) { Text("合併") }
+                } else {
+                    TextButton(onClick = { doRestore(file, replace = true) }) { Text("確定取代", color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            dismissButton = {
+                if (!confirmReplace) {
+                    TextButton(onClick = { confirmReplace = true }) { Text("取代…", color = MaterialTheme.colorScheme.error) }
+                } else {
+                    TextButton(onClick = { pendingRestore = null }) { Text("取消") }
+                }
+            },
+        )
     }
 
     when (dialog) {
