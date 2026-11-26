@@ -2,6 +2,8 @@ package com.cramtool.app
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -10,6 +12,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -52,9 +58,12 @@ class LessonFlowTest {
         }
     }
 
+    /** 頁面內容（垂直捲動的清單；分頁器本身是水平捲動） */
+    private val verticalList = hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)
+
     /** 捲到頁面底部按「下一節」 */
     private fun clickNext() {
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("下一節", substring = true))
+        rule.onNode(verticalList).performScrollToNode(hasText("下一節", substring = true))
         rule.onNodeWithText("下一節", useUnmergedTree = true).performClick()
     }
 
@@ -68,22 +77,41 @@ class LessonFlowTest {
         shot("01_edit_sample")
         rule.onNodeWithText("儲存").performClick()
 
-        // 第 1 頁：導讀
+        // 第 1 頁：導讀 → 按「下一節」
         waitText("第 1 / 7 節")
         shot("02_page1")
         clickNext()
         waitText("第 2 / 7 節")
-        clickNext()
+        // 向左滑 → 下一節（並標記第 2 節完成）
+        rule.onRoot().performTouchInput { swipeLeft() }
         waitText("第 3 / 7 節")
         waitText("4.1 堆疊（Stack）")
         shot("03_section_4_1")
+        // 向右滑 → 回上一節（不會額外標記）
+        rule.onRoot().performTouchInput { swipeRight() }
+        waitText("第 2 / 7 節")
 
-        // 全螢幕：工具列消失；點一下內文叫回來
+        // 一般模式點內文：不會進入全螢幕
+        rule.onAllNodesWithText("本章介紹兩種最基本的線性結構", substring = true).onFirst().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("全螢幕").assertExists()
+
+        // 全螢幕：只能用按鈕進入；工具列消失
         rule.onNodeWithContentDescription("全螢幕").performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("目錄").fetchSemanticsNodes().isEmpty() }
         shot("03b_fullscreen")
-        rule.onAllNodesWithText("後進先出", substring = true).onFirst().performClick()
-        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("目錄").fetchSemanticsNodes().isNotEmpty() }
+        // 點一下內文 → 功能列淡入（含「退出全螢幕」）
+        rule.onAllNodesWithText("本章介紹兩種最基本的線性結構", substring = true).onFirst().performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("退出全螢幕").fetchSemanticsNodes().isNotEmpty() }
+        shot("03c_fullscreen_bar")
+        // 約 3 秒沒操作 → 淡出，仍維持全螢幕
+        rule.mainClock.advanceTimeBy(4_000)
+        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("退出全螢幕").fetchSemanticsNodes().isEmpty() }
+        // 再點一下叫出功能列 → 按「退出全螢幕」
+        rule.onAllNodesWithText("本章介紹兩種最基本的線性結構", substring = true).onFirst().performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("退出全螢幕").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("退出全螢幕").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("全螢幕").fetchSemanticsNodes().isNotEmpty() }
 
         // 目錄：已完成 2 節，跳到最後一節
         rule.onNodeWithContentDescription("目錄").performClick()
@@ -93,7 +121,7 @@ class LessonFlowTest {
         shot("04_last")
 
         // 最後一頁按「完成課程」
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("完成課程", substring = true))
+        rule.onNode(verticalList).performScrollToNode(hasText("完成課程", substring = true))
         rule.onNodeWithText("完成課程", substring = true, useUnmergedTree = true).performClick()
         waitText("完成課程！")
         rule.onNodeWithText("回到筆記列表").performClick()

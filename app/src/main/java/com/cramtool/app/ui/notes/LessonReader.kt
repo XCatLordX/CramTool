@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -61,8 +64,8 @@ import com.cramtool.app.ui.theme.CorrectGreen
 import kotlinx.coroutines.launch
 
 /**
- * 課程式閱讀：一個小節一頁，讀完按右下角「下一節」換頁，
- * 會標記已完成的小節並記住讀到哪一頁。
+ * 課程式閱讀：一個小節一頁。可以左右滑動換頁，或按頁面最下方右下角的「下一節」；
+ * 往下一節前進時會把目前小節標為已完成，並記住讀到哪一頁。
  */
 @Composable
 fun LessonReader(
@@ -75,68 +78,85 @@ fun LessonReader(
 ) {
     val app = cramApp()
     val repo = app.notes
-    var page by remember { mutableIntStateOf(note.lessonPage.coerceIn(0, pages.lastIndex)) }
+    val scope = rememberCoroutineScope()
+    val pager = rememberPagerState(initialPage = note.lessonPage.coerceIn(0, pages.lastIndex)) { pages.size }
     // 資料庫的完成紀錄改變時（例如「重設學習進度」）同步回來
-    var completed by remember(note.completedPages) { mutableStateOf(note.completedSet) }
+    // 單一狀態物件（換頁監聽器會一直寫入同一個）；資料庫變動時同步過來
+    var completed by remember { mutableStateOf(note.completedSet) }
+    LaunchedEffect(note.completedPages) { completed = note.completedSet }
     LaunchedEffect(note.completedPages, note.lessonPage) {
-        if (note.completedPages.isEmpty() && note.lessonPage == 0) page = 0
+        if (note.completedPages.isEmpty() && note.lessonPage == 0 && pager.currentPage != 0) pager.scrollToPage(0)
     }
     var showToc by remember { mutableStateOf(false) }
     var finished by remember { mutableStateOf(false) }
 
-    fun go(to: Int, markCurrentDone: Boolean) {
-        if (markCurrentDone) completed = completed + pages[page].title
-        page = to.coerceIn(0, pages.lastIndex)
+    fun save() {
         val snapshot = completed
-        val p = page
+        val p = pager.settledPage
         app.appScope.launch { repo.saveLessonState(note.id, p, snapshot) }
     }
 
+    // 換頁（滑動或按鈕）停下來時：往下一頁前進就把上一頁標為完成，並存檔
+    LaunchedEffect(pager) {
+        var prev = pager.settledPage
+        snapshotFlow { pager.settledPage }.collect { p ->
+            if (p == prev + 1) completed = completed + pages[prev].title
+            prev = p
+            save()
+        }
+    }
+
+    fun go(to: Int, markCurrentDone: Boolean) {
+        if (markCurrentDone) { completed = completed + pages[pager.currentPage].title; save() }
+        scope.launch { pager.animateScrollToPage(to.coerceIn(0, pages.lastIndex)) }
+    }
+
+    val page = pager.currentPage
     val cur = pages[page]
     val doneCount = pages.count { it.title in completed }
 
-    Scaffold(
-        contentWindowInsets = readerInsets(),
-        topBar = {
-            ReaderTopBar(
-                title = note.title,
-                subtitle = cur.title,
-                progress = { (page + 1).toFloat() / pages.size },
-                onBack = onBack,
-                actions = {
-                    IconButton(onClick = { showToc = true }) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "目錄") }
-                    actions()
-                },
-                fullscreen = chrome.fullscreen,
-            )
+    ReaderScaffold(
+        title = note.title,
+        subtitle = cur.title,
+        progress = { (pager.currentPage + 1).toFloat() / pages.size },
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { showToc = true }) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, "目錄") }
+            actions()
         },
-    ) { pad ->
-        key(page) {
-            val list = rememberLazyListState() // 換頁時回到頂端
+        chrome = chrome,
+    ) { tapModifier ->
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.fillMaxSize(),
+            key = { "$it:${pages[it].title}" },
+        ) { i ->
+            val p = pages[i]
             SelectionContainer {
                 LazyColumn(
-                    state = list,
-                    modifier = Modifier.fillMaxSize().padding(pad).tapToToggle(chrome),
+                    state = rememberLazyListState(), // 每頁各自從頂端開始
+                    modifier = Modifier.fillMaxSize().then(tapModifier),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
                 ) {
-                    item { PageHeader(cur, page, pages.size, cur.title in completed) }
-                    items(pageBlocks(cur)) { b -> MdBlockView(b, scale) }
+                    item { PageHeader(p, i, pages.size, p.title in completed) }
+                    items(pageBlocks(p)) { b -> MdBlockView(b, scale) }
                     item {
                         PageNav(
-                            prev = pages.getOrNull(page - 1),
-                            next = pages.getOrNull(page + 1),
-                            onPrev = { go(page - 1, markCurrentDone = false) },
-                            onNext = { go(page + 1, markCurrentDone = true) },
-                            onFinish = { go(page, markCurrentDone = true); finished = true },
+                            prev = pages.getOrNull(i - 1),
+                            next = pages.getOrNull(i + 1),
+                            onPrev = { go(i - 1, markCurrentDone = false) },
+                            onNext = { go(i + 1, markCurrentDone = true) },
+                            onFinish = { go(i, markCurrentDone = true); finished = true },
                         )
                     }
+                    item { SwipeHint(hasNext = i < pages.lastIndex, hasPrev = i > 0) }
                 }
             }
         }
     }
 
     if (showToc) {
-        LessonToc(pages, page, completed, doneCount, onPick = { go(it, markCurrentDone = false) }, onDismiss = { showToc = false })
+        LessonToc(pages, page, completed, doneCount, onPick = { scope.launch { pager.scrollToPage(it) } }, onDismiss = { showToc = false })
     }
     if (finished) {
         AlertDialog(
@@ -144,7 +164,7 @@ fun LessonReader(
             title = { Text("🎉 完成課程！") },
             text = { Text("「${note.title}」共 ${pages.size} 節，已完成 ${pages.count { it.title in completed }} 節。") },
             confirmButton = { TextButton(onClick = { finished = false; onBack() }) { Text("回到筆記列表") } },
-            dismissButton = { TextButton(onClick = { finished = false; go(0, markCurrentDone = false) }) { Text("從第一節複習") } },
+            dismissButton = { TextButton(onClick = { finished = false; scope.launch { pager.scrollToPage(0) } }) { Text("從第一節複習") } },
         )
     }
 }
@@ -183,6 +203,21 @@ private fun PageHeader(p: LessonPage, index: Int, total: Int, done: Boolean) {
             Text("已完成", style = MaterialTheme.typography.labelMedium, color = CorrectGreen)
         }
     }
+}
+
+@Composable
+private fun SwipeHint(hasNext: Boolean, hasPrev: Boolean) {
+    val text = when {
+        hasNext && hasPrev -> "← 也可以左右滑動換節 →"
+        hasNext -> "也可以向左滑動到下一節 →"
+        hasPrev -> "← 向右滑動回上一節"
+        else -> return
+    }
+    Text(
+        text, modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+    )
 }
 
 /** 頁面最下方：左「上一節」、右下角「下一節」（含下一節標題預告） */

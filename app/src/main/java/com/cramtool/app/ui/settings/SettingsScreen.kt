@@ -196,6 +196,20 @@ fun SettingsScreen(onBack: () -> Unit) {
             item { Section("音效與震動") }
             item { SwitchRow("答題音效", "答對、答錯與完成練習時播放提示音", soundOn) { s.setSoundEnabled(it) } }
             item { SwitchRow("答題震動", "答對輕震一下、答錯震兩下", haptics) { s.setHapticsEnabled(it) } }
+            if (haptics) item {
+                ListItem(
+                    headlineContent = { Text("測試震動") },
+                    supportingContent = {
+                        Text(
+                            if (app.sounds.canVibrate) "沒感覺到震動？請到手機「設定 → 音效與震動」確認「觸控回饋／觸感回饋」與震動強度已開啟。"
+                            else "這支裝置沒有震動功能。"
+                        )
+                    },
+                    trailingContent = {
+                        OutlinedButton(onClick = { app.sounds.testVibration() }, enabled = app.sounds.canVibrate) { Text("試震") }
+                    },
+                )
+            }
             if (soundOn) {
                 item {
                     Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {

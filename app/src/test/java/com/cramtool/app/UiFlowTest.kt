@@ -87,6 +87,9 @@ class UiFlowTest {
         val wrongPath = File(rule.activity.cacheDir, "sfx/v1_bright_wrong.wav").path
         rule.runOnUiThread { Shadows.shadowOf(sounds.pool).notifyPathLoaded(wrongPath, true) }
         assertTrue("答錯音效應被播放", Shadows.shadowOf(sounds.pool).wasPathPlayed(wrongPath))
+        // 答錯時有震動
+        val vibrator = rule.activity.getSystemService(android.os.VibratorManager::class.java).defaultVibrator
+        assertTrue("答錯應震動", Shadows.shadowOf(vibrator).isVibrating)
         rule.onNodeWithText("下一題").performClick()
 
         // 第 2 題：填空，答對

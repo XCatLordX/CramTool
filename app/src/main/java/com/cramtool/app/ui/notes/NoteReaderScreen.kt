@@ -1,5 +1,14 @@
 package com.cramtool.app.ui.notes
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
+import kotlinx.coroutines.delay
 import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -125,13 +134,21 @@ private fun ReaderHost(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> U
         if (fullscreen) ctrl?.hide(WindowInsetsCompat.Type.systemBars()) else ctrl?.show(WindowInsetsCompat.Type.systemBars())
         onDispose { ctrl?.show(WindowInsetsCompat.Type.systemBars()) }
     }
+    // 全螢幕時點一下內文會短暫顯示功能列；沒有操作約 3 秒後淡出（選單或對話框開著時不淡出）
+    var barVisible by remember { mutableStateOf(false) }
+    val popupOpen = menu || showFont || dialog != null
+    LaunchedEffect(fullscreen, barVisible, popupOpen) {
+        if (fullscreen && barVisible && !popupOpen) { delay(BAR_AUTO_HIDE_MS); barVisible = false }
+    }
     val toggleFullscreen = {
-        if (!fullscreen) Toast.makeText(ctx, "點一下內文即可叫出／收起工具列", Toast.LENGTH_SHORT).show()
+        if (!fullscreen) Toast.makeText(ctx, "全螢幕閱讀：點一下畫面可暫時叫出功能列", Toast.LENGTH_SHORT).show()
         fullscreen = !fullscreen
+        barVisible = false
     }
 
     val actions: @Composable RowScope.() -> Unit = {
-        IconButton(onClick = toggleFullscreen) { Icon(Icons.Default.Fullscreen, "全螢幕") }
+        if (fullscreen) IconButton(onClick = toggleFullscreen) { Icon(Icons.Default.FullscreenExit, "退出全螢幕") }
+        else IconButton(onClick = toggleFullscreen) { Icon(Icons.Default.Fullscreen, "全螢幕") }
         IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "更多") }
         DropdownMenu(menu, { menu = false }) {
             DropdownMenuItem(
@@ -152,7 +169,7 @@ private fun ReaderHost(note: NoteEntity, onBack: () -> Unit, onEdit: (Long) -> U
         }
     }
 
-    val chrome = ReaderChrome(fullscreen = fullscreen, onTapContent = { fullscreen = !fullscreen })
+    val chrome = ReaderChrome(fullscreen = fullscreen, barVisible = barVisible, onTapContent = { barVisible = !barVisible })
     if (paged) LessonReader(note, pages, scale, onBack, actions, chrome)
     else ScrollReader(note, blocks, scale, onBack, actions, chrome)
 
@@ -226,13 +243,15 @@ private fun ScrollReader(
     }
     var showOutline by remember { mutableStateOf(false) }
 
-    Scaffold(
-        contentWindowInsets = readerInsets(),
-        topBar = {
-            ReaderTopBar(note.title, current?.title?.takeIf { it != note.title }, { progress }, onBack, actions, chrome.fullscreen)
-        },
+    ReaderScaffold(
+        title = note.title,
+        subtitle = current?.title?.takeIf { it != note.title },
+        progress = { progress },
+        onBack = onBack,
+        actions = actions,
+        chrome = chrome,
         floatingActionButton = {
-            if (outline.isNotEmpty() && !chrome.fullscreen) {
+            if (outline.isNotEmpty()) {
                 ExtendedFloatingActionButton(
                     modifier = Modifier.horizontalSafe(),
                     onClick = { showOutline = true },
@@ -241,9 +260,9 @@ private fun ScrollReader(
                 )
             }
         },
-    ) { pad ->
+    ) { tapModifier ->
         // 底部留白一個畫面高，讓最後幾個標題也能捲到頂端（大綱跳轉後標題會在最上方）
-        BoxWithConstraints(Modifier.fillMaxSize().padding(pad).tapToToggle(chrome)) {
+        BoxWithConstraints(Modifier.fillMaxSize().then(tapModifier)) {
             val tail = maxHeight - 48.dp
             SelectionContainer {
                 LazyColumn(
@@ -267,12 +286,7 @@ fun ReaderTopBar(
     progress: () -> Float,
     onBack: () -> Unit,
     actions: @Composable RowScope.() -> Unit,
-    fullscreen: Boolean = false,
 ) {
-    if (fullscreen) {
-        LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth().height(2.dp).horizontalSafe())
-        return
-    }
     Column {
         TopAppBar(
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
@@ -294,12 +308,51 @@ fun ReaderTopBar(
     }
 }
 
-/** 閱讀器的全螢幕狀態，以及「點內文切換工具列」 */
-data class ReaderChrome(val fullscreen: Boolean, val onTapContent: () -> Unit)
+const val BAR_AUTO_HIDE_MS = 3000L
 
-/** 點一下內文（非按鈕處）就切換全螢幕；長按選字不受影響 */
-fun Modifier.tapToToggle(chrome: ReaderChrome): Modifier =
-    pointerInput(chrome.onTapContent) { detectTapGestures(onTap = { chrome.onTapContent() }) }
+/** 閱讀器的全螢幕狀態：fullscreen 只能用按鈕切換；全螢幕時點內文切換 [barVisible] */
+data class ReaderChrome(val fullscreen: Boolean, val barVisible: Boolean, val onTapContent: () -> Unit)
+
+/**
+ * 閱讀器外框：一般模式顯示標題列；全螢幕時只留細進度條，
+ * 點一下內文讓功能列以淡入方式蓋在內容上方（不會推動內文），之後自動淡出。
+ * [content] 收到的 Modifier 要加在內文容器上（全螢幕時負責偵測點擊）。
+ */
+@Composable
+fun ReaderScaffold(
+    title: String,
+    subtitle: String?,
+    progress: () -> Float,
+    onBack: () -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+    chrome: ReaderChrome,
+    floatingActionButton: @Composable () -> Unit = {},
+    content: @Composable (tapModifier: Modifier) -> Unit,
+) {
+    val onTap by rememberUpdatedState(chrome.onTapContent)
+    Scaffold(
+        contentWindowInsets = readerInsets(),
+        topBar = {
+            if (chrome.fullscreen) LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth().height(2.dp).horizontalSafe())
+            else ReaderTopBar(title, subtitle, progress, onBack, actions)
+        },
+        floatingActionButton = {
+            AnimatedVisibility(!chrome.fullscreen || chrome.barVisible, enter = fadeIn(), exit = fadeOut()) { floatingActionButton() }
+        },
+    ) { pad ->
+        Box(Modifier.fillMaxSize().padding(pad)) {
+            val tap = if (chrome.fullscreen) Modifier.pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) } else Modifier
+            content(tap)
+            AnimatedVisibility(
+                visible = chrome.fullscreen && chrome.barVisible,
+                enter = fadeIn(), exit = fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter),
+            ) {
+                Surface(shadowElevation = 4.dp) { ReaderTopBar(title, subtitle, progress, onBack, actions) }
+            }
+        }
+    }
+}
 
 /** 閱讀器內容避開系統列與鏡頭挖孔（全螢幕時系統列高度為 0） */
 @Composable

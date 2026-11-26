@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -94,20 +95,44 @@ class SoundEffects(private val context: Context, private val settings: AppSettin
         ids.remove(path)?.let { pool.unload(it); ready -= it; failed -= it }
     }
 
+    private fun vibrator(): Vibrator? = if (Build.VERSION.SDK_INT >= 31) {
+        context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION") context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+
+    /** 此裝置是否有震動馬達 */
+    val canVibrate: Boolean get() = vibrator()?.hasVibrator() == true
+
+    /** 設定頁「測試震動」：不受開關影響 */
+    fun testVibration(cue: Cue = Cue.WRONG) = vibrate(cue)
+
+    /**
+     * 使用明確強度的波形（不用系統預設的 EFFECT_CLICK：部分手機震感極弱或不支援），
+     * 並標記為「觸控回饋」用途：與鍵盤震動同類，靜音／勿擾模式下通常仍會震動。
+     */
     private fun vibrate(cue: Cue) {
-        val v: Vibrator? = if (Build.VERSION.SDK_INT >= 31) {
-            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION") context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        }
-        if (v == null || !v.hasVibrator()) return
+        val v = vibrator() ?: return
+        if (!v.hasVibrator()) return
+        val amp = v.hasAmplitudeControl()
         val effect = when (cue) {
-            Cue.CORRECT -> if (Build.VERSION.SDK_INT >= 29) VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
-                else VibrationEffect.createOneShot(25, VibrationEffect.DEFAULT_AMPLITUDE)
-            Cue.WRONG -> VibrationEffect.createWaveform(longArrayOf(0, 45, 60, 45), -1)
-            Cue.FINISH -> VibrationEffect.createWaveform(longArrayOf(0, 30, 50, 30, 50, 60), -1)
+            // 答對：一下短而清楚
+            Cue.CORRECT -> if (amp) VibrationEffect.createOneShot(40, 180) else VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE)
+            // 答錯：兩下
+            Cue.WRONG -> if (amp) VibrationEffect.createWaveform(longArrayOf(0, 60, 70, 60), intArrayOf(0, 255, 0, 255), -1)
+                else VibrationEffect.createWaveform(longArrayOf(0, 60, 70, 60), -1)
+            // 完成：三下由弱到強
+            Cue.FINISH -> if (amp) VibrationEffect.createWaveform(longArrayOf(0, 40, 60, 40, 60, 80), intArrayOf(0, 120, 0, 180, 0, 255), -1)
+                else VibrationEffect.createWaveform(longArrayOf(0, 40, 60, 40, 60, 80), -1)
         }
-        runCatching { v.vibrate(effect) }
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_TOUCH))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(effect, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).build())
+            }
+        }
     }
 
     /** 把使用者選的音訊複製到 App 內部，回傳新路徑 */
