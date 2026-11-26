@@ -77,7 +77,10 @@ class NotesFlowTest {
         shot("02_edit")
         rule.onNodeWithText("儲存").performClick()
 
-        // 閱讀器 + 大綱跳轉（等閱讀器才有的「大綱」按鈕出現）
+        // 有多個章節的筆記預設是分頁閱讀；用選單切換成捲動閱讀，測試大綱跳轉
+        waitText("第 1 / ")
+        rule.onNodeWithContentDescription("更多").performClick()
+        rule.onNodeWithText("切換為捲動閱讀").performClick()
         waitText("大綱")
         shot("03_reader")
         rule.onNodeWithText("大綱", useUnmergedTree = true).performClick()

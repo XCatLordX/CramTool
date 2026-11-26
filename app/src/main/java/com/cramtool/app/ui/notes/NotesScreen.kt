@@ -52,6 +52,7 @@ import com.cramtool.app.data.NoteRepository
 import com.cramtool.app.data.NoteSummary
 import com.cramtool.app.notes.Markdown
 import com.cramtool.app.ui.EmptyState
+import com.cramtool.app.ui.horizontalSafe
 import com.cramtool.app.ui.cramApp
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -148,6 +149,7 @@ fun NotesScreen(
         },
         floatingActionButton = {
             if (!searching) ExtendedFloatingActionButton(
+                modifier = Modifier.horizontalSafe(),
                 onClick = { onNewNote(folderId) },
                 icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("新增筆記") },
@@ -252,7 +254,12 @@ private fun NoteRow(n: NoteSummary, subtitle: String?, onClick: () -> Unit, onAc
     ListRow(
         icon = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
         title = n.title,
-        subtitle = listOfNotNull(subtitle, formatTime(n.updatedAt), "約 ${n.length} 字").joinToString(" · "),
+        subtitle = listOfNotNull(
+            subtitle,
+            if (n.pageCount >= 2) "學習進度 ${n.completedCount}/${n.pageCount} 節" else null,
+            formatTime(n.updatedAt),
+            "約 ${n.length} 字",
+        ).joinToString(" · "),
         preview = preview.ifBlank { null },
         onClick = onClick,
         onAction = onAction,

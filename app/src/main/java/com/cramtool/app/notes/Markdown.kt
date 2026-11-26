@@ -18,7 +18,6 @@ data class OutlineEntry(val level: Int, val title: String, val blockIndex: Int)
 object Markdown {
     private val HEADING = Regex("""^(#{1,6})\s+(.*?)\s*#*\s*$""")
     private val SETEXT_H1 = Regex("""^=+\s*$""")
-    private val SETEXT_H2 = Regex("""^-+\s*$""")
     private val RULE = Regex("""^\s{0,3}([-*_])(\s*\1){2,}\s*$""")
     private val BULLET = Regex("""^(\s*)[-*+]\s+(.*)$""")
     private val ORDERED = Regex("""^(\s*)(\d{1,3})[.)]\s+(.*)$""")
@@ -81,11 +80,11 @@ object Markdown {
                 i++; continue
             }
 
-            // Setext 標題：上一行是段落、這一行是 === 或 ---
-            if (para.isNotBlank() && !para.contains('\n') && (SETEXT_H1.matches(trimmed) || SETEXT_H2.matches(trimmed))) {
+            // Setext 標題：上一行是段落、這一行是 ===（不支援 ---，因為 LLM 常把 --- 當分隔線緊接在段落後）
+            if (para.isNotBlank() && !para.contains('\n') && SETEXT_H1.matches(trimmed)) {
                 val text = para.toString().trim()
                 para.clear()
-                out += MdBlock.Heading(if (trimmed.startsWith("=")) 1 else 2, text)
+                out += MdBlock.Heading(1, text)
                 i++; continue
             }
 

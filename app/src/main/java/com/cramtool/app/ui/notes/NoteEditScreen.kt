@@ -18,11 +18,13 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.cramtool.app.SessionStore
+import com.cramtool.app.notes.Lesson
 import com.cramtool.app.notes.Markdown
 import com.cramtool.app.notes.NotePrompt
 import com.cramtool.app.ui.cramApp
@@ -84,6 +87,10 @@ fun NoteEditScreen(
         content = text
         if (!titleTouched) title = Markdown.guessTitle(text)
     }
+    /** 從外部（剪貼簿、檔案、分享）帶入：去掉 LLM 常加的外層 ```markdown 區塊 */
+    fun importContent(text: String) = setContent(Lesson.stripOuterFence(text))
+    fun clipboardText(): String? = (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+        .primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()
 
     LaunchedEffect(noteId) {
         if (noteId != null && !loaded) {
@@ -95,7 +102,7 @@ fun NoteEditScreen(
         }
     }
     LaunchedEffect(Unit) {
-        SessionStore.pendingNote.value?.let { setContent(it); SessionStore.pendingNote.value = null }
+        SessionStore.pendingNote.value?.let { importContent(it); SessionStore.pendingNote.value = null }
     }
 
     val dirty = (title to content) != original && content.isNotBlank()
@@ -107,7 +114,7 @@ fun NoteEditScreen(
             val text = withContext(Dispatchers.IO) {
                 runCatching { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
             }
-            if (text == null) Toast.makeText(ctx, "無法讀取檔案", Toast.LENGTH_SHORT).show() else setContent(text)
+            if (text == null) Toast.makeText(ctx, "無法讀取檔案", Toast.LENGTH_SHORT).show() else importContent(text)
         }
     }
 
@@ -135,26 +142,44 @@ fun NoteEditScreen(
             Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad).imePadding().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (noteId == null) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (noteId == null) {
                     AssistChip(
                         onClick = {
                             (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                                .setPrimaryClip(ClipData.newPlainText("prompt", NotePrompt.text))
-                            Toast.makeText(ctx, "已複製整理筆記提示詞", Toast.LENGTH_SHORT).show()
+                                .setPrimaryClip(ClipData.newPlainText("prompt", NotePrompt.lesson))
+                            Toast.makeText(ctx, "已複製課程式筆記提示詞，貼給 LLM 並附上講義", Toast.LENGTH_LONG).show()
                         },
-                        label = { Text("複製整理筆記提示詞") },
+                        label = { Text("複製課程式筆記提示詞") },
                         leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
                     )
                     AssistChip(
                         onClick = {
-                            val clip = (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                                .primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()
-                            if (clip.isNullOrBlank()) Toast.makeText(ctx, "剪貼簿是空的", Toast.LENGTH_SHORT).show() else setContent(clip)
+                            val clip = clipboardText()
+                            if (clip.isNullOrBlank()) Toast.makeText(ctx, "剪貼簿是空的", Toast.LENGTH_SHORT).show() else importContent(clip)
                         },
                         label = { Text("從剪貼簿貼上") },
                         leadingIcon = { Icon(Icons.Default.ContentPaste, null) },
                     )
+                    AssistChip(
+                        onClick = { importContent(NotePrompt.sample) },
+                        label = { Text("載入範例課程") },
+                        leadingIcon = { Icon(Icons.Default.AutoStories, null) },
+                    )
+                }
+                AssistChip(
+                    onClick = {
+                        val clip = clipboardText()
+                        if (clip.isNullOrBlank()) Toast.makeText(ctx, "剪貼簿是空的", Toast.LENGTH_SHORT).show()
+                        else {
+                            setContent(Lesson.appendContinuation(content, clip))
+                            Toast.makeText(ctx, "已接在最後", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    label = { Text("從剪貼簿附加到最後") },
+                    leadingIcon = { Icon(Icons.Default.PlaylistAdd, null) },
+                )
+                if (noteId == null) {
                     AssistChip(
                         onClick = { picker.launch(arrayOf("text/markdown", "text/plain", "text/*", "*/*")) },
                         label = { Text("選擇 .md / .txt 檔") },

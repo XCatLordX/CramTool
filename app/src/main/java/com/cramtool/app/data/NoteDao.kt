@@ -49,7 +49,7 @@ interface NoteDao {
     @Query(
         """
         SELECT id, folderId, title, updatedAt, lastOpenedAt, LENGTH(content) AS length,
-          SUBSTR(content, 1, 300) AS preview
+          SUBSTR(content, 1, 300) AS preview, pageCount, completedPages
         FROM notes
         WHERE (:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId
         """
@@ -59,7 +59,7 @@ interface NoteDao {
     @Query(
         """
         SELECT id, folderId, title, updatedAt, lastOpenedAt, LENGTH(content) AS length,
-          SUBSTR(content, 1, 300) AS preview
+          SUBSTR(content, 1, 300) AS preview, pageCount, completedPages
         FROM notes
         WHERE title LIKE '%' || :q || '%' OR content LIKE '%' || :q || '%'
         ORDER BY updatedAt DESC LIMIT 200
@@ -90,6 +90,15 @@ interface NoteDao {
 
     @Query("UPDATE notes SET readPosition = :pos, lastOpenedAt = :now WHERE id = :id")
     suspend fun saveReadPosition(id: Long, pos: Int, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE notes SET lessonPage = :page, completedPages = :completed, lastOpenedAt = :now WHERE id = :id")
+    suspend fun saveLessonState(id: Long, page: Int, completed: String, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE notes SET pageCount = :count WHERE id = :id")
+    suspend fun setPageCount(id: Long, count: Int)
+
+    @Query("UPDATE notes SET viewMode = :mode WHERE id = :id")
+    suspend fun setViewMode(id: Long, mode: Int)
 
     @Query("DELETE FROM notes WHERE id = :id")
     suspend fun deleteNote(id: Long)

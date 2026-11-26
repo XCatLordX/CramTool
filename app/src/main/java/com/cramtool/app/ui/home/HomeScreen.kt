@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cramtool.app.data.BankSummary
 import com.cramtool.app.ui.EmptyState
+import com.cramtool.app.ui.horizontalSafe
 import com.cramtool.app.ui.cramApp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +67,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
+                modifier = Modifier.horizontalSafe(),
                 onClick = onImport,
                 icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("匯入題庫") },

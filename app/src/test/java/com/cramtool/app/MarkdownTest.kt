@@ -65,6 +65,10 @@ class MarkdownTest {
         assertEquals(MdBlock.Heading(1, "設定標題"), b[13])
     }
 
+    @Test fun dashesAfterParagraphAreARuleNotAHeading() {
+        assertEquals(listOf(MdBlock.Paragraph("內容"), MdBlock.Rule), Markdown.parse("內容\n---"))
+    }
+
     @Test fun outlineSkipsCodeAndPointsToBlocks() {
         val b = Markdown.parse(sample)
         val o = Markdown.outline(b)

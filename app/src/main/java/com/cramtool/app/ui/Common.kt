@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -62,4 +64,11 @@ fun EmptyState(title: String, body: String, modifier: Modifier = Modifier) {
 fun Modifier.bottomBarInsets(): Modifier = this.windowInsetsPadding(
     androidx.compose.foundation.layout.WindowInsets.navigationBars
         .union(androidx.compose.foundation.layout.WindowInsets.ime)
+)
+
+/** 浮動按鈕等貼邊元件：橫放時避開左右兩側的導覽列與鏡頭挖孔 */
+@Composable
+fun Modifier.horizontalSafe(): Modifier = this.windowInsetsPadding(
+    androidx.compose.foundation.layout.WindowInsets.safeDrawing
+        .only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal)
 )

@@ -59,6 +59,10 @@ class NoteRepository(context: Context, private val db: AppDatabase) {
     suspend fun moveNote(id: Long, folderId: Long?) = dao.moveNote(id, folderId)
     suspend fun deleteNote(id: Long) = dao.deleteNote(id)
     suspend fun saveReadPosition(id: Long, pos: Int) = dao.saveReadPosition(id, pos)
+    suspend fun saveLessonState(id: Long, page: Int, completed: Set<String>) =
+        dao.saveLessonState(id, page, completed.joinToString("\n"))
+    suspend fun setPageCount(id: Long, count: Int) = dao.setPageCount(id, count)
+    suspend fun setViewMode(id: Long, mode: Int) = dao.setViewMode(id, mode)
 
     companion object {
         private const val KEY_FONT = "reader_font_scale"
