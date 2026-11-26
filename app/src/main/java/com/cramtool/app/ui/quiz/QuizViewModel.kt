@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cramtool.app.CramApp
+import com.cramtool.app.audio.Cue
 import com.cramtool.app.QuizRequest
 import com.cramtool.app.SessionStore
 import com.cramtool.app.data.QuestionEntity
@@ -86,15 +87,20 @@ class QuizViewModel(private val app: CramApp) : ViewModel() {
             else -> Grader.gradeChoice(q, selected)
         }
         revealed = true
+        correct?.let { app.sounds.play(if (it) Cue.CORRECT else Cue.WRONG) }
     }
 
     /** 簡答自評，或填空題自動批改太嚴格時手動改判 */
-    fun judge(isCorrect: Boolean) { if (revealed) correct = isCorrect }
+    fun judge(isCorrect: Boolean) {
+        if (!revealed || correct == isCorrect) return
+        correct = isCorrect
+        app.sounds.play(if (isCorrect) Cue.CORRECT else Cue.WRONG)
+    }
 
     fun next() {
         commitCurrent()
         if (index >= questions.lastIndex) {
-            finished = true
+            finish()
         } else {
             index++
             resetAnswer()
@@ -103,7 +109,12 @@ class QuizViewModel(private val app: CramApp) : ViewModel() {
 
     fun finishEarly() {
         commitCurrent()
+        finish()
+    }
+
+    private fun finish() {
         finished = true
+        if (records.isNotEmpty()) app.sounds.play(Cue.FINISH)
     }
 
     private fun resetAnswer() {

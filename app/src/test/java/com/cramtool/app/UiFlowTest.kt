@@ -11,10 +11,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -80,6 +82,11 @@ class UiFlowTest {
         rule.onNodeWithText("確認答案").performClick()
         waitText("答錯了")
         shot("05_quiz_wrong")
+        // 答錯音效有被播放（Robolectric 的 SoundPool 需要手動通知載入完成）
+        val sounds = (rule.activity.application as CramApp).sounds
+        val wrongPath = File(rule.activity.cacheDir, "sfx/v1_bright_wrong.wav").path
+        rule.runOnUiThread { Shadows.shadowOf(sounds.pool).notifyPathLoaded(wrongPath, true) }
+        assertTrue("答錯音效應被播放", Shadows.shadowOf(sounds.pool).wasPathPlayed(wrongPath))
         rule.onNodeWithText("下一題").performClick()
 
         // 第 2 題：填空，答對

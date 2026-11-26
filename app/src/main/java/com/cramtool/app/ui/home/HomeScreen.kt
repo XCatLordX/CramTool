@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -46,6 +47,7 @@ fun HomeScreen(
     onOpenBank: (Long) -> Unit,
     onImport: () -> Unit,
     onWrongBook: () -> Unit,
+    onSettings: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
 ) {
     val repo = cramApp().repository
@@ -55,6 +57,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = { IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "設定") } },
                 title = { Text("我的題庫") },
                 actions = {
                     IconButton(onClick = onWrongBook) {

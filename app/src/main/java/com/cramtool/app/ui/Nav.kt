@@ -20,6 +20,7 @@ import com.cramtool.app.ui.notes.NoteEditScreen
 import com.cramtool.app.ui.notes.NoteReaderScreen
 import com.cramtool.app.ui.notes.NotesScreen
 import com.cramtool.app.ui.quiz.QuizScreen
+import com.cramtool.app.ui.settings.SettingsScreen
 import com.cramtool.app.ui.wrongbook.WrongBookScreen
 
 private const val NONE = -1L
@@ -54,6 +55,7 @@ fun CramNavHost() {
                 onOpenBank = { nav.navigate("bank/$it") },
                 onImport = { nav.navigate("import") },
                 onWrongBook = { nav.navigate("wrongbook") },
+                onSettings = { nav.navigate("settings") },
                 bottomBar = { tabs(MainTab.QUIZ) },
             )
         }
@@ -77,6 +79,7 @@ fun CramNavHost() {
         composable("browse/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
             BrowseScreen(bankId = it.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
         }
+        composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable("wrongbook") {
             WrongBookScreen(onBack = { nav.popBackStack() }, onStart = ::startQuiz)
         }

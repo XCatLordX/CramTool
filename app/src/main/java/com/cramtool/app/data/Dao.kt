@@ -79,6 +79,14 @@ interface CramDao {
     )
     suspend fun resetBankStats(bankId: Long)
 
+    @Query(
+        """
+        UPDATE questions SET attempts = 0, correctCount = 0, wrongCount = 0,
+          lastAnsweredAt = NULL, lastResultCorrect = NULL, inWrongBook = 0, reviewStreak = 0
+        """
+    )
+    suspend fun resetAllStats()
+
     // ---------- 錯題本 ----------
     @Query(
         """

@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.cramtool.app.ui.CramNavHost
 import com.cramtool.app.ui.theme.CramTheme
 
@@ -14,8 +16,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) handleIntent(intent)
+        val settings = (application as CramApp).settings
         setContent {
-            CramTheme {
+            val mode by settings.themeMode.collectAsState()
+            val dynamic by settings.dynamicColor.collectAsState()
+            CramTheme(mode, dynamic) {
                 CramNavHost()
             }
         }

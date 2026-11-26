@@ -97,6 +97,7 @@ class Repository(context: Context, private val db: AppDatabase) {
     suspend fun renameBank(id: Long, name: String) = dao.renameBank(id, name)
     suspend fun deleteBank(id: Long) = dao.deleteBank(id)
     suspend fun resetBankStats(id: Long) = dao.resetBankStats(id)
+    suspend fun resetAllStats() = dao.resetAllStats()
 
     companion object {
         private const val KEY_MASTERY = "mastery_threshold"
