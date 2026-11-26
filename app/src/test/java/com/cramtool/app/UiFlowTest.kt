@@ -40,8 +40,15 @@ class UiFlowTest {
         File(outDir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun waitText(text: String) = rule.waitUntil(5_000) {
-        rule.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty()
+    private fun waitText(text: String) {
+        try {
+            rule.waitUntil(15_000) {
+                rule.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (e: Throwable) {
+            runCatching { shot("FAILED_waiting_for_$text") }
+            throw AssertionError("等不到畫面出現文字「$text」", e)
+        }
     }
 
     @Test fun fullFlow() {

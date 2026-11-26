@@ -17,9 +17,22 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
+        continue-on-error: true
+        id: tests
       - name: Build debug APK
         run: ./gradlew assembleDebug
+      - name: Upload test reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/screenshots/
       - uses: actions/upload-artifact@v4
         with:
           name: CramTool-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
