@@ -1,15 +1,13 @@
 package com.cramtool.app
 
 import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
+import android.graphics.Canvas
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -34,10 +32,17 @@ class UiFlowTest {
 
     private val outDir = File("build/screenshots").apply { mkdirs() }
 
+    /** 把整個視窗畫成 PNG；截圖失敗不影響測試結果 */
     private fun shot(name: String) {
         rule.waitForIdle()
-        val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
-        File(outDir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        runCatching {
+            rule.runOnUiThread {
+                val v = rule.activity.window.decorView
+                val bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888)
+                v.draw(Canvas(bmp))
+                File(outDir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        }.onFailure { println("screenshot $name failed: $it") }
     }
 
     private fun waitText(text: String) {
