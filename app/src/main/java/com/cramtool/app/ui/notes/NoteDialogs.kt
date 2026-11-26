@@ -122,13 +122,13 @@ private fun PickRow(id: Long?, name: String, depth: Int, isCurrent: Boolean, onC
 }
 
 @Composable
-fun ConfirmDeleteDialog(title: String, body: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+fun ConfirmDeleteDialog(title: String, body: String, onDismiss: () -> Unit, confirmLabel: String = "刪除", onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(body) },
         confirmButton = {
-            TextButton(onClick = { onConfirm(); onDismiss() }) { Text("刪除", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel, color = MaterialTheme.colorScheme.error) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )

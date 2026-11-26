@@ -46,8 +46,8 @@ class SettingsFlowTest {
         rule.onNodeWithContentDescription("設定").performClick()
         waitText("顯示模式")
         // 版本資訊在列表最下面
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("CramTool 0.4.0", substring = true))
-        waitText("CramTool 0.4.0")
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("CramTool 0.5.0", substring = true))
+        waitText("CramTool 0.5.0")
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("顯示模式"))
 
         shot("01_light")

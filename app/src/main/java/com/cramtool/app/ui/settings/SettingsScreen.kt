@@ -65,6 +65,7 @@ import com.cramtool.app.data.ThemeMode
 import com.cramtool.app.importer.PromptTemplate
 import com.cramtool.app.notes.NotePrompt
 import com.cramtool.app.ui.cramApp
+import com.cramtool.app.ui.mainToast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,8 +110,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 BackupSummary.of(file)
             }
             busy = false
-            result.onSuccess { toast(ctx, "已備份：$it") }
-                .onFailure { Toast.makeText(ctx, "備份失敗：${it.message}", Toast.LENGTH_LONG).show() }
+            result.onSuccess { mainToast(ctx, "已備份：$it") }
+                .onFailure { mainToast(ctx, "備份失敗：${it.message}", long = true) }
         }
     }
     // ---- 還原：讀檔 → 預覽 → 選合併或取代
@@ -124,7 +125,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 withContext(Dispatchers.Default) { BackupCodec.decode(text) }
             }
             result.onSuccess { pendingRestore = it }
-                .onFailure { Toast.makeText(ctx, it.message ?: "無法讀取備份檔", Toast.LENGTH_LONG).show() }
+                .onFailure { mainToast(ctx, it.message ?: "無法讀取備份檔", long = true) }
         }
     }
     fun doRestore(file: BackupFile, replace: Boolean) {
@@ -133,8 +134,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         scope.launch {
             val r = runCatching { app.backup.restore(file, replace) }
             busy = false
-            r.onSuccess { toast(ctx, (if (replace) "已還原：" else "已合併：") + it) }
-                .onFailure { Toast.makeText(ctx, "還原失敗，資料未變更：${it.message}", Toast.LENGTH_LONG).show() }
+            r.onSuccess { mainToast(ctx, (if (replace) "已還原：" else "已合併：") + it) }
+                .onFailure { mainToast(ctx, "還原失敗，資料未變更：${it.message}", long = true) }
         }
     }
 
@@ -147,9 +148,9 @@ fun SettingsScreen(onBack: () -> Unit) {
             result.onSuccess { path ->
                 if (cue == Cue.CORRECT) s.setCustomCorrect(path) else s.setCustomWrong(path)
                 app.sounds.previewFile(path)
-                Toast.makeText(ctx, "已套用自訂音效", Toast.LENGTH_SHORT).show()
+                mainToast(ctx, "已套用自訂音效")
             }.onFailure {
-                Toast.makeText(ctx, "無法使用這個檔案：${it.message ?: "格式不支援"}", Toast.LENGTH_LONG).show()
+                mainToast(ctx, "無法使用這個檔案：${it.message ?: "格式不支援"}", long = true)
             }
         }
     }
@@ -157,7 +158,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         // 檔案無法解碼（格式不支援）→ 恢復內建音效
         if (path == s.customCorrect.value) s.setCustomCorrect(null)
         if (path == s.customWrong.value) s.setCustomWrong(null)
-        scope.launch { Toast.makeText(ctx, "音效檔無法播放，已恢復內建音效", Toast.LENGTH_LONG).show() }
+        scope.launch { mainToast(ctx, "音效檔無法播放，已恢復內建音效", long = true) }
     }
 
     Scaffold(
@@ -382,7 +383,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             app.notes.setFontScale(it)
         }
         "resetStats" -> ConfirmDialog("清除所有作答紀錄？", "此動作無法復原。", { dialog = null }) {
-            scope.launch { app.repository.resetAllStats(); toast(ctx, "已清除作答紀錄") }
+            scope.launch { app.repository.resetAllStats(); mainToast(ctx, "已清除作答紀錄") }
         }
         "resetSettings" -> ConfirmDialog("還原預設設定？", "自訂音效檔也會被移除。", { dialog = null }) {
             app.sounds.removeCustom(customOk); app.sounds.removeCustom(customBad)

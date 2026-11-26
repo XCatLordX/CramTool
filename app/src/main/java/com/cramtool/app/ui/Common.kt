@@ -72,3 +72,9 @@ fun Modifier.horizontalSafe(): Modifier = this.windowInsetsPadding(
     androidx.compose.foundation.layout.WindowInsets.safeDrawing
         .only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal)
 )
+
+/** 在任何執行緒都能安全顯示 Toast（資料庫交易結束後可能不在主執行緒） */
+suspend fun mainToast(ctx: android.content.Context, msg: String, long: Boolean = false) =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+        android.widget.Toast.makeText(ctx, msg, if (long) android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT).show()
+    }

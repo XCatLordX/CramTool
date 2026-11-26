@@ -46,6 +46,37 @@ class NoteRepository(context: Context, private val db: AppDatabase) {
         return true
     }
 
+    // ---------- 批次操作（多選） ----------
+
+    /**
+     * 把多個筆記與資料夾移到 [target]。會形成循環的資料夾（移到自己或子孫裡）會被略過。
+     * @return 被略過的資料夾數
+     */
+    suspend fun moveItems(noteIds: Collection<Long>, folderIds: Collection<Long>, target: Long?): Int = db.withTransaction {
+        val all = dao.getAllFolders()
+        var skipped = 0
+        folderIds.forEach { f ->
+            if (target != null && (target == f || target in descendantsOf(f, all))) skipped++
+            else dao.moveFolder(f, target)
+        }
+        noteIds.forEach { dao.moveNote(it, target) }
+        skipped
+    }
+
+    /** 刪除多個筆記與資料夾（資料夾內未被選取的內容會移到上一層，不會被刪掉） */
+    suspend fun deleteItems(noteIds: Collection<Long>, folderIds: Collection<Long>) = db.withTransaction {
+        noteIds.forEach { dao.deleteNote(it) }
+        folderIds.forEach { deleteFolder(it) }
+    }
+
+    /** 在 [parent] 建立新資料夾，並把選取的項目放進去 */
+    suspend fun groupIntoNewFolder(name: String, parent: Long?, noteIds: Collection<Long>, folderIds: Collection<Long>): Long =
+        db.withTransaction {
+            val id = dao.insertFolder(FolderEntity(name = name, parentId = parent))
+            moveItems(noteIds, folderIds, id)
+            id
+        }
+
     // ---------- 筆記 ----------
     suspend fun createNote(title: String, content: String, folderId: Long?): Long =
         dao.insertNote(NoteEntity(title = title, content = content, folderId = folderId))
